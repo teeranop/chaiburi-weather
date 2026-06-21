@@ -4,36 +4,44 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>สภาพอากาศ &amp; ปริมาณน้ำฝน อ.ชัยบุรี จ.สุราษฎร์ธานี</title>
-<meta name="theme-color" content="#eaf2fb">
+<meta name="theme-color" content="#0a4f9c">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="ฝนชัยบุรี">
-<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230f172a'/%3E%3Ctext y='72' x='50' font-size='60' text-anchor='middle'%3E%F0%9F%8C%A7%EF%B8%8F%3C/text%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230a4f9c'/%3E%3Ctext y='72' x='50' font-size='60' text-anchor='middle'%3E%F0%9F%8C%A7%EF%B8%8F%3C/text%3E%3C/svg%3E">
 <style>
   :root{
-    --bg:#eef2f7; --card:#ffffff; --card2:#f1f5f9; --text:#0f223a;
-    --muted:#5b6b80; --accent:#0369a1; --rain:#2563eb; --warn:#c2710c;
-    --good:#15803d; --line:#dbe3ec;
+    --bg:#eef2f6; --card:#ffffff; --card2:#f3f6fa; --text:#10233b;
+    --muted:#5b6b80; --accent:#0b62b3; --rain:#1d6fd6; --warn:#d97706;
+    --good:#15803d; --line:#dde5ee;
+    --brand1:#0a4f9c; --brand2:#1577c2;
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  html{font-size:18px}
+  html{font-size:18px;scroll-behavior:smooth}
   body{
     font-family:"Segoe UI",Tahoma,"Sarabun",sans-serif;
-    background:linear-gradient(160deg,#eaf2fb,#e6f7ff);
-    color:var(--text);min-height:100vh;padding:20px;line-height:1.5;
+    background:var(--bg);color:var(--text);min-height:100vh;line-height:1.5;
   }
-  .wrap{max-width:1100px;margin:0 auto}
-  header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:20px}
-  h1{font-size:1.7rem;font-weight:800}
-  h1 small{display:block;font-size:1rem;color:var(--muted);font-weight:500;margin-top:6px}
-  .updated{font-size:.92rem;color:var(--muted);text-align:right}
-  .btn{background:var(--accent);color:#fff;border:none;padding:10px 20px;border-radius:10px;font-weight:700;cursor:pointer;font-size:1rem}
-  .btn:hover{opacity:.9}
+  /* thaiwater-style top bar */
+  .topbar{background:linear-gradient(100deg,var(--brand1),var(--brand2));color:#fff;box-shadow:0 2px 10px rgba(10,79,156,.28);position:sticky;top:0;z-index:50}
+  .topbar-inner{max-width:1100px;margin:0 auto;padding:12px 16px 10px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .brand{display:flex;align-items:center;gap:11px;font-size:1.22rem;font-weight:800;line-height:1.2}
+  .brand .bicon{font-size:1.8rem}
+  .brand small{display:block;font-size:.8rem;font-weight:500;opacity:.92;margin-top:3px}
+  .tabs{max-width:1100px;margin:0 auto;padding:0 8px;display:flex;gap:2px;overflow-x:auto}
+  .tabs a{color:rgba(255,255,255,.9);text-decoration:none;padding:9px 15px;font-size:.95rem;font-weight:700;white-space:nowrap;border-bottom:3px solid transparent;transition:.15s}
+  .tabs a:hover{background:rgba(255,255,255,.12)}
+  .tabs a.active{border-bottom-color:#fff;color:#fff}
+  .wrap{max-width:1100px;margin:0 auto;padding:18px 16px 28px}
+  #content,#stations,#dams,#sec-rain{scroll-margin-top:130px}
+  .updated{font-size:.82rem;color:#eaf2fb;text-align:right;margin-top:3px}
+  .btn{background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.55);padding:8px 16px;border-radius:9px;font-weight:700;cursor:pointer;font-size:.95rem}
+  .btn:hover{background:rgba(255,255,255,.3)}
   .grid{display:grid;gap:16px}
   .cards{grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
   .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;box-shadow:0 1px 3px rgba(15,34,58,.06),0 6px 16px rgba(15,34,58,.05)}
-  .card h2{font-size:1.2rem;color:var(--accent);margin-bottom:14px;font-weight:700}
+  .card h2{font-size:1.2rem;color:var(--brand1);margin-bottom:14px;font-weight:800;border-left:5px solid var(--brand2);padding-left:11px;line-height:1.35}
   .now{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
   .now .icon{font-size:3.6rem;line-height:1}
   .now .temp{font-size:3.1rem;font-weight:800}
@@ -93,16 +101,27 @@
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <h1>🌧️ สภาพอากาศ &amp; ปริมาณน้ำฝน
-      <small>อ.ชัยบุรี จ.สุราษฎร์ธานี · 8.4628°N, 99.0767°E</small>
-    </h1>
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <span class="bicon">🌧️</span>
+      <div>คลังข้อมูลสภาพอากาศ &amp; น้ำ — อ.ชัยบุรี
+        <small>จ.สุราษฎร์ธานี · 8.4628°N, 99.0767°E</small>
+      </div>
+    </div>
     <div>
       <button class="btn" id="refresh">🔄 รีเฟรช</button>
       <div class="updated" id="updated"></div>
     </div>
-  </header>
+  </div>
+  <nav class="tabs" id="tabs">
+    <a href="#content">สภาพอากาศ &amp; พยากรณ์</a>
+    <a href="#sec-rain">ฝนสะสม</a>
+    <a href="#stations">จุดวัดน้ำฝน</a>
+    <a href="#dams">เขื่อน/อ่างเก็บน้ำ</a>
+  </nav>
+</div>
+<div class="wrap">
 
   <div id="content">
     <div class="loading">กำลังโหลดข้อมูล…</div>
@@ -233,7 +252,7 @@ function render(d){
       <div class="forecast">${fc}</div>
     </div>
 
-    <div class="card" style="margin-bottom:16px">
+    <div class="card" id="sec-rain" style="margin-bottom:16px">
       <h2>ปริมาณน้ำฝนสะสมย้อนหลัง</h2>
       <div class="sumrow">
         <div class="stat">วันนี้<b class="rainbig">${rainToday.toFixed(1)} มม.</b></div>
@@ -460,6 +479,21 @@ function loadAll(){ load(); loadStations(); loadDams(); }
 document.getElementById("refresh").addEventListener("click", loadAll);
 loadAll();
 setInterval(loadAll, 15*60*1000); // auto refresh 15 นาที
+
+// ===== scroll-spy ไฮไลต์แท็บที่กำลังดู (สไตล์ thaiwater) =====
+const tabLinks = Array.from(document.querySelectorAll('#tabs a'));
+function syncTabs(){
+  const y = window.scrollY + 150;
+  let cur = tabLinks[0];
+  for(const a of tabLinks){
+    const el = document.querySelector(a.getAttribute('href'));
+    if(el && el.offsetTop <= y) cur = a;
+  }
+  tabLinks.forEach(a => a.classList.toggle('active', a === cur));
+}
+window.addEventListener('scroll', syncTabs, {passive:true});
+window.addEventListener('load', syncTabs);
+setTimeout(syncTabs, 500);
 </script>
 </body>
 </html>
