@@ -10,6 +10,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="ฝนชัยบุรี">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230a4f9c'/%3E%3Ctext y='72' x='50' font-size='60' text-anchor='middle'%3E%F0%9F%8C%A7%EF%B8%8F%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root{
     --bg:#eef2f6; --card:#ffffff; --card2:#f3f6fa; --text:#10233b;
@@ -18,10 +21,10 @@
     --brand1:#0a4f9c; --brand2:#1577c2;
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  html{font-size:18px;scroll-behavior:smooth}
+  html{font-size:15px;scroll-behavior:smooth}
   body{
-    font-family:"Segoe UI",Tahoma,"Sarabun",sans-serif;
-    background:var(--bg);color:var(--text);min-height:100vh;line-height:1.5;
+    font-family:"Sarabun","Segoe UI",Tahoma,sans-serif;
+    background:var(--bg);color:var(--text);min-height:100vh;line-height:1.55;
   }
   /* thaiwater-style top bar */
   .topbar{background:linear-gradient(100deg,var(--brand1),var(--brand2));color:#fff;box-shadow:0 2px 10px rgba(10,79,156,.28);position:sticky;top:0;z-index:50}
@@ -93,7 +96,7 @@
   .hrow .hval{font-size:.95rem;font-weight:700;min-width:70px;text-align:left;color:var(--text)}
   details{margin-top:14px}
   details summary{cursor:pointer;color:var(--accent);font-size:1rem;padding:6px 0;font-weight:600}
-  @media(max-width:560px){html{font-size:16px}.hrow{grid-template-columns:104px 1fr auto}.hrow .hval{min-width:52px;font-size:.85rem}}
+  @media(max-width:560px){html{font-size:14px}.hrow{grid-template-columns:104px 1fr auto}.hrow .hval{min-width:52px;font-size:.85rem}}
   .note{font-size:.92rem;color:var(--muted);line-height:1.65;margin-top:10px}
   .loading{color:var(--muted);padding:30px;text-align:center;font-size:1.05rem}
   .err{color:#dc2626}
@@ -313,13 +316,13 @@ function renderStations(all){
       inChai: (x.geocode?.amphoe_name?.th === "ชัยบุรี" && x.geocode?.province_name?.th === "สุราษฎร์ธานี")
     }))
     .filter(s => s.inChai || s.dist <= RADIUS)
-    .sort((a,b) => a.dist - b.dist);
+    .sort((a,b) => (b.inChai - a.inChai) || (a.dist - b.dist));
 
   const chaiCount = rows.filter(r => r.inChai).length;
 
-  // กราฟแท่ง: ฝนสะสม 24 ชม. (เรียงมากไปน้อย, สูงสุด 14 สถานี)
+  // กราฟแท่ง: ในอ.ชัยบุรีก่อน แล้วที่เหลือเรียงฝนมากไปน้อย (สูงสุด 14 สถานี)
   const chartRows = rows.filter(r => r.r24 != null)
-    .slice().sort((a,b) => (b.r24||0) - (a.r24||0)).slice(0,14);
+    .slice().sort((a,b) => (b.inChai - a.inChai) || ((b.r24||0) - (a.r24||0))).slice(0,14);
   const maxR = Math.max(1, ...chartRows.map(r => r.r24||0));
   const rainColor = v => v>=90?'#ef4444':v>=35?'#f59e0b':v>=10?'#3b82f6':'#7dd3fc';
   let chart = "";
@@ -349,7 +352,7 @@ function renderStations(all){
       <span class="badge">ในอ.ชัยบุรี ${chaiCount} สถานี</span>
       <span class="badge">รัศมี ${RADIUS} กม. รวม ${rows.length} สถานี</span>
     </h2>
-    <div class="note">ฝนสะสม 24 ชม. (มม.) — เรียงจากมากไปน้อย · แท่งสีฟ้าอ่อน=เล็กน้อย ฟ้า=ปานกลาง เหลือง=หนัก แดง=หนักมาก · ชื่อสีฟ้า = สถานีในอ.ชัยบุรี</div>
+    <div class="note">ฝนสะสม 24 ชม. (มม.) — แสดงสถานีในอ.ชัยบุรีก่อน แล้วเรียงจากมากไปน้อย · แท่งสีฟ้าอ่อน=เล็กน้อย ฟ้า=ปานกลาง เหลือง=หนัก แดง=หนักมาก · ชื่อสีฟ้า = สถานีในอ.ชัยบุรี</div>
     <div class="hchart">${chart || '<div class="note">ยังไม่มีค่าฝน</div>'}</div>
     <details>
       <summary>ดูแบบตาราง (ฝน 1 ชม. / 24 ชม. / เวลา / หน่วยงาน)</summary>
