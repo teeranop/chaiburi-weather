@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>สภาพอากาศ &amp; ปริมาณน้ำฝน อ.ชัยบุรี จ.สุราษฎร์ธานี</title>
+<meta name="theme-color" content="#0f172a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ฝนชัยบุรี">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230f172a'/%3E%3Ctext y='72' x='50' font-size='60' text-anchor='middle'%3E%F0%9F%8C%A7%EF%B8%8F%3C/text%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#0f172a; --card:#1e293b; --card2:#273449; --text:#e2e8f0;
+    --muted:#94a3b8; --accent:#38bdf8; --rain:#3b82f6; --warn:#f59e0b;
+    --good:#22c55e; --line:#334155;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:"Segoe UI",Tahoma,"Sarabun",sans-serif;
+    background:linear-gradient(160deg,#0f172a,#13243f);
+    color:var(--text);min-height:100vh;padding:20px;
+  }
+  .wrap{max-width:1100px;margin:0 auto}
+  header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:20px}
+  h1{font-size:1.5rem;font-weight:700}
+  h1 small{display:block;font-size:.85rem;color:var(--muted);font-weight:400;margin-top:4px}
+  .updated{font-size:.8rem;color:var(--muted);text-align:right}
+  .btn{background:var(--accent);color:#06283d;border:none;padding:8px 16px;border-radius:8px;font-weight:600;cursor:pointer;font-size:.85rem}
+  .btn:hover{opacity:.9}
+  .grid{display:grid;gap:16px}
+  .cards{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px}
+  .card h2{font-size:.95rem;color:var(--accent);margin-bottom:12px}
+  .now{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+  .now .icon{font-size:3.2rem;line-height:1}
+  .now .temp{font-size:2.8rem;font-weight:700}
+  .now .desc{font-size:1rem;color:var(--muted)}
+  .stat{font-size:.8rem;color:var(--muted)}
+  .stat b{display:block;font-size:1.1rem;color:var(--text);font-weight:600}
+  .rainbig{color:var(--rain)}
+  .forecast{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;overflow-x:auto}
+  .day{background:var(--card2);border-radius:10px;padding:10px 6px;text-align:center;min-width:80px}
+  .day .dname{font-size:.78rem;color:var(--muted)}
+  .day .dico{font-size:1.6rem;margin:6px 0}
+  .day .dtemp{font-size:.82rem}
+  .day .drain{font-size:.78rem;color:var(--rain);margin-top:4px}
+  .bars{display:flex;align-items:flex-end;gap:3px;height:160px;margin-top:10px;overflow-x:auto;padding-bottom:4px}
+  .bar{flex:1;min-width:9px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%}
+  .bar .fill{width:100%;background:linear-gradient(180deg,var(--rain),#1d4ed8);border-radius:3px 3px 0 0;min-height:1px}
+  .bar .blabel{font-size:.55rem;color:var(--muted);margin-top:3px;white-space:nowrap;transform:rotate(-60deg);transform-origin:top left;height:26px}
+  .sumrow{display:flex;gap:24px;flex-wrap:wrap;margin-bottom:6px}
+  .sumrow .stat b{font-size:1.4rem}
+  .links a{color:var(--accent);text-decoration:none;display:inline-block;margin:4px 14px 4px 0;font-size:.85rem}
+  .links a:hover{text-decoration:underline}
+  .sttable{width:100%;border-collapse:collapse;font-size:.85rem;margin-top:6px}
+  .sttable th,.sttable td{padding:8px 10px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+  .sttable th:first-child,.sttable td:first-child,
+  .sttable th:nth-child(2),.sttable td:nth-child(2){text-align:left}
+  .sttable th{color:var(--accent);font-weight:600;position:sticky;top:0;background:var(--card)}
+  .sttable tr.inchai td{background:rgba(56,189,248,.10)}
+  .sttable tr.inchai td:first-child{font-weight:700}
+  .sttable .r0{color:var(--muted)}
+  .sttable .r1{color:#7dd3fc}
+  .sttable .r2{color:var(--rain);font-weight:600}
+  .sttable .r3{color:var(--warn);font-weight:700}
+  .sttable .r4{color:#f87171;font-weight:700}
+  .stwrap{max-height:420px;overflow:auto}
+  .badge{display:inline-block;background:rgba(56,189,248,.15);color:var(--accent);border-radius:6px;padding:1px 7px;font-size:.72rem;margin-left:6px}
+  .pbar{position:relative;width:90px;height:14px;background:#0b1220;border-radius:7px;overflow:hidden;display:inline-block;vertical-align:middle}
+  .pbar .pfill{position:absolute;left:0;top:0;bottom:0;border-radius:7px}
+  .pbar .ptext{position:relative;font-size:.68rem;line-height:14px;color:#e2e8f0;font-weight:600;text-shadow:0 0 3px #000;padding-left:6px}
+  .lvl-low{background:linear-gradient(90deg,#b45309,#f59e0b)}
+  .lvl-mid{background:linear-gradient(90deg,#1d4ed8,#3b82f6)}
+  .lvl-high{background:linear-gradient(90deg,#15803d,#22c55e)}
+  .lvl-full{background:linear-gradient(90deg,#b91c1c,#ef4444)}
+  .hchart{display:flex;flex-direction:column;gap:7px;margin-top:10px}
+  .hrow{display:grid;grid-template-columns:150px 1fr auto;align-items:center;gap:10px;font-size:.82rem}
+  .hrow .hlabel{text-align:right;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hrow.hl .hlabel{color:var(--accent);font-weight:700}
+  .hrow .htrack{background:#0b1220;border-radius:7px;height:18px;overflow:hidden}
+  .hrow .hbarfill{height:100%;border-radius:7px;min-width:2px;transition:width .4s}
+  .hrow .hval{font-size:.78rem;font-weight:600;min-width:64px;text-align:left;color:var(--muted)}
+  details{margin-top:12px}
+  details summary{cursor:pointer;color:var(--accent);font-size:.85rem;padding:4px 0}
+  @media(max-width:560px){.hrow{grid-template-columns:96px 1fr auto}.hrow .hval{min-width:48px;font-size:.7rem}}
+  .note{font-size:.78rem;color:var(--muted);line-height:1.6;margin-top:8px}
+  .loading{color:var(--muted);padding:30px;text-align:center}
+  .err{color:#fca5a5}
+  footer{margin-top:24px;font-size:.75rem;color:var(--muted);text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🌧️ สภาพอากาศ &amp; ปริมาณน้ำฝน
+      <small>อ.ชัยบุรี จ.สุราษฎร์ธานี · 8.4628°N, 99.0767°E</small>
+    </h1>
+    <div>
+      <button class="btn" id="refresh">🔄 รีเฟรช</button>
+      <div class="updated" id="updated"></div>
+    </div>
+  </header>
+
+  <div id="content">
+    <div class="loading">กำลังโหลดข้อมูล…</div>
+  </div>
+
+  <div class="card" id="stations" style="margin-top:16px">
+    <div class="loading">กำลังโหลดจุดวัดน้ำฝนจริงจาก ThaiWater…</div>
+  </div>
+
+  <div class="card" id="dams" style="margin-top:16px">
+    <div class="loading">กำลังโหลดข้อมูลปริมาณน้ำเขื่อน/อ่างเก็บน้ำ…</div>
+  </div>
+
+  <footer>
+    ข้อมูลจาก Open-Meteo (โมเดลพยากรณ์/วิเคราะห์ความละเอียดสูง) · เขตเวลา Asia/Bangkok ·
+    อัปเดตอัตโนมัติทุก 15 นาที
+  </footer>
+</div>
+
+<script>
+const LAT = 8.46278, LON = 99.07667;
+const TZ = "Asia/Bangkok";
+
+// WMO weather code -> {emoji, ไทย}
+const WMO = {
+  0:["☀️","ท้องฟ้าแจ่มใส"],1:["🌤️","มีเมฆบางส่วน"],2:["⛅","มีเมฆเป็นบางส่วน"],3:["☁️","เมฆมาก/ครึ้ม"],
+  45:["🌫️","หมอก"],48:["🌫️","หมอกน้ำแข็ง"],
+  51:["🌦️","ฝนปรอยเล็กน้อย"],53:["🌦️","ฝนปรอย"],55:["🌧️","ฝนปรอยหนัก"],
+  56:["🌧️","ฝนปรอยเย็นจัด"],57:["🌧️","ฝนปรอยเย็นจัดหนัก"],
+  61:["🌦️","ฝนเล็กน้อย"],63:["🌧️","ฝนปานกลาง"],65:["🌧️","ฝนตกหนัก"],
+  66:["🌧️","ฝนเย็นจัด"],67:["🌧️","ฝนเย็นจัดหนัก"],
+  71:["🌨️","หิมะเล็กน้อย"],73:["🌨️","หิมะ"],75:["❄️","หิมะหนัก"],77:["❄️","เกล็ดหิมะ"],
+  80:["🌦️","ฝนซู่เล็กน้อย"],81:["🌧️","ฝนซู่ปานกลาง"],82:["⛈️","ฝนซู่หนักมาก"],
+  85:["🌨️","ฝนหิมะซู่"],86:["🌨️","ฝนหิมะซู่หนัก"],
+  95:["⛈️","พายุฝนฟ้าคะนอง"],96:["⛈️","ฝนฟ้าคะนอง+ลูกเห็บ"],99:["⛈️","ฝนฟ้าคะนองรุนแรง+ลูกเห็บ"]
+};
+const wmo = c => WMO[c] || ["❓","ไม่ทราบ"];
+const dayNames = ["อา","จ","อ","พ","พฤ","ศ","ส"];
+const monthNames = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
+
+function fmtDate(d){ return d.getDate()+" "+monthNames[d.getMonth()]; }
+
+async function load(){
+  const content = document.getElementById("content");
+  const url = "https://api.open-meteo.com/v1/forecast"
+    + "?latitude=" + LAT + "&longitude=" + LON
+    + "&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m,surface_pressure"
+    + "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max"
+    + "&past_days=30&forecast_days=7"
+    + "&timezone=" + encodeURIComponent(TZ);
+  try{
+    const res = await fetch(url);
+    if(!res.ok) throw new Error("HTTP " + res.status);
+    const d = await res.json();
+    render(d);
+    document.getElementById("updated").textContent =
+      "อัปเดตล่าสุด: " + new Date().toLocaleString("th-TH");
+  }catch(e){
+    content.innerHTML = '<div class="loading err">โหลดข้อมูลไม่สำเร็จ: '
+      + e.message + '<br>ตรวจสอบการเชื่อมต่ออินเทอร์เน็ตแล้วกดรีเฟรช</div>';
+  }
+}
+
+function render(d){
+  const c = d.current, dl = d.daily;
+  const [cIco,cDesc] = wmo(c.weather_code);
+
+  // index of today within daily arrays (past_days=30 => today at index 30)
+  const todayIdx = dl.time.findIndex(t => t === d.current.time.slice(0,10));
+  const ti = todayIdx >= 0 ? todayIdx : 30;
+
+  // accumulated rainfall last 30 days (indices 0..ti)
+  let rain30 = 0, rain7past = 0, rainToday = dl.precipitation_sum[ti] || 0;
+  for(let i=0;i<=ti;i++) rain30 += dl.precipitation_sum[i]||0;
+  for(let i=Math.max(0,ti-6);i<=ti;i++) rain7past += dl.precipitation_sum[i]||0;
+
+  // history bars (past 30 incl today)
+  const histStart = Math.max(0, ti-29);
+  const histVals = dl.precipitation_sum.slice(histStart, ti+1);
+  const histDates = dl.time.slice(histStart, ti+1);
+  const maxRain = Math.max(1, ...histVals);
+
+  let bars = "";
+  for(let i=0;i<histVals.length;i++){
+    const v = histVals[i]||0;
+    const h = (v/maxRain*100);
+    const dt = new Date(histDates[i]+"T00:00:00");
+    bars += '<div class="bar" title="'+fmtDate(dt)+': '+v.toFixed(1)+' มม.">'
+          + '<div class="fill" style="height:'+h+'%"></div>'
+          + '<div class="blabel">'+dt.getDate()+'/'+(dt.getMonth()+1)+'</div></div>';
+  }
+
+  // 7-day forecast (today .. +6)
+  let fc = "";
+  for(let i=ti;i<Math.min(ti+7, dl.time.length);i++){
+    const dt = new Date(dl.time[i]+"T00:00:00");
+    const [ico] = wmo(dl.weather_code[i]);
+    const label = (i===ti) ? "วันนี้" : dayNames[dt.getDay()]+" "+dt.getDate()+"/"+(dt.getMonth()+1);
+    fc += '<div class="day">'
+        + '<div class="dname">'+label+'</div>'
+        + '<div class="dico">'+ico+'</div>'
+        + '<div class="dtemp">'+Math.round(dl.temperature_2m_max[i])+'° / '+Math.round(dl.temperature_2m_min[i])+'°</div>'
+        + '<div class="drain">💧 '+(dl.precipitation_sum[i]||0).toFixed(1)+' มม.</div>'
+        + '<div class="drain">'+(dl.precipitation_probability_max[i]??0)+'%</div>'
+        + '</div>';
+  }
+
+  document.getElementById("content").innerHTML = `
+    <div class="grid cards" style="margin-bottom:16px">
+      <div class="card" style="grid-column:span 2;min-width:280px">
+        <h2>สภาพอากาศปัจจุบัน</h2>
+        <div class="now">
+          <div class="icon">${cIco}</div>
+          <div>
+            <div class="temp">${Math.round(c.temperature_2m)}°C</div>
+            <div class="desc">${cDesc} · รู้สึกเหมือน ${Math.round(c.apparent_temperature)}°C</div>
+          </div>
+        </div>
+      </div>
+      <div class="card"><div class="stat">ฝนตอนนี้<b class="rainbig">${c.precipitation} มม.</b></div></div>
+      <div class="card"><div class="stat">ความชื้น<b>${c.relative_humidity_2m}%</b></div></div>
+      <div class="card"><div class="stat">ลม<b>${c.wind_speed_10m} กม./ชม.</b></div></div>
+      <div class="card"><div class="stat">ความกดอากาศ<b>${Math.round(c.surface_pressure)} hPa</b></div></div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+      <h2>พยากรณ์ล่วงหน้า 7 วัน</h2>
+      <div class="forecast">${fc}</div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+      <h2>ปริมาณน้ำฝนสะสมย้อนหลัง</h2>
+      <div class="sumrow">
+        <div class="stat">วันนี้<b class="rainbig">${rainToday.toFixed(1)} มม.</b></div>
+        <div class="stat">7 วันที่ผ่านมา<b class="rainbig">${rain7past.toFixed(1)} มม.</b></div>
+        <div class="stat">30 วันที่ผ่านมา<b class="rainbig">${rain30.toFixed(1)} มม.</b></div>
+      </div>
+      <div class="bars">${bars}</div>
+      <div class="note">กราฟแท่ง: ปริมาณฝนรายวัน (มม.) ย้อนหลัง 30 วัน — ชี้เมาส์ที่แท่งเพื่อดูค่า</div>
+    </div>
+
+    <div class="card links">
+      <h2>📊 แหล่งข้อมูลทางการ</h2>
+      <a href="https://www.thaiwater.net/water/rain" target="_blank">ThaiWater (คลังข้อมูลน้ำแห่งชาติ)</a>
+      <a href="https://www.tmd.go.th/region/south" target="_blank">กรมอุตุนิยมวิทยา ภาคใต้</a>
+      <a href="https://hydro-8.rid.go.th/" target="_blank">ศูนย์อุทกวิทยาชลประทานภาคใต้</a>
+      <div class="note">
+        การ์ดด้านบน (ปัจจุบัน/พยากรณ์/ฝนสะสม 30 วัน) มาจากโมเดล Open-Meteo ความละเอียด ~1–11 กม.
+        ส่วน "จุดวัดน้ำฝนจริง" ด้านบนเป็นค่าจากมาตรวัดฝน (rain gauge) จริงผ่าน ThaiWater
+      </div>
+    </div>
+  `;
+}
+
+// ===== ThaiWater: จุดวัดน้ำฝนจริง =====
+async function loadStations(){
+  const box = document.getElementById("stations");
+  try{
+    const res = await fetch("https://api-v3.thaiwater.net/api/v1/thaiwater30/public/rain_24h");
+    if(!res.ok) throw new Error("HTTP " + res.status);
+    const json = await res.json();
+    renderStations(json.data || []);
+  }catch(e){
+    box.innerHTML = '<div class="note err">ดึงข้อมูลจุดวัด ThaiWater ไม่สำเร็จ: '+e.message+'</div>';
+  }
+}
+
+function rainClass(v){
+  if(v==null) return "r0";
+  if(v===0) return "r0";
+  if(v<10) return "r1";
+  if(v<35) return "r2";
+  if(v<90) return "r3";
+  return "r4";
+}
+
+function renderStations(all){
+  const RADIUS = 40; // กม.
+  const rows = all
+    .filter(x => x.station && x.station.tele_station_lat)
+    .map(x => ({
+      name: x.station.tele_station_name?.th || "-",
+      amphoe: x.geocode?.amphoe_name?.th || "-",
+      prov: x.geocode?.province_name?.th || "-",
+      agency: x.agency?.agency_shortname?.th || "-",
+      r1: x.rain_1h, r24: x.rain_24h,
+      time: x.rainfall_datetime || "",
+      dist: haversine(LAT, LON, x.station.tele_station_lat, x.station.tele_station_long),
+      inChai: (x.geocode?.amphoe_name?.th === "ชัยบุรี" && x.geocode?.province_name?.th === "สุราษฎร์ธานี")
+    }))
+    .filter(s => s.inChai || s.dist <= RADIUS)
+    .sort((a,b) => a.dist - b.dist);
+
+  const chaiCount = rows.filter(r => r.inChai).length;
+
+  // กราฟแท่ง: ฝนสะสม 24 ชม. (เรียงมากไปน้อย, สูงสุด 14 สถานี)
+  const chartRows = rows.filter(r => r.r24 != null)
+    .slice().sort((a,b) => (b.r24||0) - (a.r24||0)).slice(0,14);
+  const maxR = Math.max(1, ...chartRows.map(r => r.r24||0));
+  const rainColor = v => v>=90?'#ef4444':v>=35?'#f59e0b':v>=10?'#3b82f6':'#7dd3fc';
+  let chart = "";
+  for(const s of chartRows){
+    const w = (s.r24/maxR*100);
+    chart += '<div class="hrow '+(s.inChai?'hl':'')+'">'
+      + '<div class="hlabel" title="'+s.name+' ('+s.amphoe+')">'+s.name+'</div>'
+      + '<div class="htrack"><div class="hbarfill" style="width:'+w+'%;background:'+rainColor(s.r24)+'"></div></div>'
+      + '<div class="hval">'+s.r24+' มม.</div></div>';
+  }
+
+  let body = "";
+  for(const s of rows){
+    body += '<tr class="'+(s.inChai?'inchai':'')+'">'
+      + '<td>'+s.name+(s.inChai?'<span class="badge">ชัยบุรี</span>':'')+'</td>'
+      + '<td>'+s.amphoe+' / '+s.prov+'</td>'
+      + '<td>'+s.dist.toFixed(1)+'</td>'
+      + '<td class="'+rainClass(s.r1)+'">'+(s.r1==null?'-':s.r1)+'</td>'
+      + '<td class="'+rainClass(s.r24)+'">'+(s.r24==null?'-':s.r24)+'</td>'
+      + '<td class="r0">'+(s.time? s.time.slice(5,16):'-')+'</td>'
+      + '<td class="r0">'+s.agency+'</td>'
+      + '</tr>';
+  }
+
+  document.getElementById("stations").innerHTML = `
+    <h2>🌧️ จุดวัดน้ำฝนจริง — ThaiWater
+      <span class="badge">ในอ.ชัยบุรี ${chaiCount} สถานี</span>
+      <span class="badge">รัศมี ${RADIUS} กม. รวม ${rows.length} สถานี</span>
+    </h2>
+    <div class="note">ฝนสะสม 24 ชม. (มม.) — เรียงจากมากไปน้อย · แท่งสีฟ้าอ่อน=เล็กน้อย ฟ้า=ปานกลาง เหลือง=หนัก แดง=หนักมาก · ชื่อสีฟ้า = สถานีในอ.ชัยบุรี</div>
+    <div class="hchart">${chart || '<div class="note">ยังไม่มีค่าฝน</div>'}</div>
+    <details>
+      <summary>ดูแบบตาราง (ฝน 1 ชม. / 24 ชม. / เวลา / หน่วยงาน)</summary>
+      <div class="stwrap">
+        <table class="sttable">
+          <thead><tr>
+            <th>สถานี</th><th>อำเภอ / จังหวัด</th><th>ห่าง (กม.)</th>
+            <th>ฝน 1 ชม.</th><th>ฝน 24 ชม.</th><th>เวลา</th><th>หน่วยงาน</th>
+          </tr></thead>
+          <tbody>${body}</tbody>
+        </table>
+      </div>
+    </details>
+    <div class="note">ที่มา: api-v3.thaiwater.net (สสน./คลังข้อมูลน้ำแห่งชาติ)</div>
+  `;
+}
+
+function haversine(lat1,lon1,lat2,lon2){
+  const R=6371, r=x=>x*Math.PI/180;
+  const dLat=r(lat2-lat1), dLon=r(lon2-lon1);
+  const a=Math.sin(dLat/2)**2 + Math.cos(r(lat1))*Math.cos(r(lat2))*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(a));
+}
+
+// ===== ThaiWater: ปริมาณน้ำเขื่อน/อ่างเก็บน้ำ =====
+async function loadDams(){
+  const box = document.getElementById("dams");
+  try{
+    const res = await fetch("https://api-v3.thaiwater.net/api/v1/thaiwater30/analyst/dam");
+    if(!res.ok) throw new Error("HTTP " + res.status);
+    const json = await res.json();
+    const d = json.data || {};
+    const big = (d.dam_daily||[]).map(x=>mapDam(x,"ใหญ่"));
+    const med = (d.dam_medium||[]).map(x=>mapDam(x,"กลาง"));
+    renderDams(big.concat(med));
+  }catch(e){
+    box.innerHTML = '<div class="note err">ดึงข้อมูลเขื่อน ThaiWater ไม่สำเร็จ: '+e.message+'</div>';
+  }
+}
+
+function mapDam(x, size){
+  return {
+    name: x.dam?.dam_name?.th || "-",
+    size,
+    amphoe: x.geocode?.amphoe_name?.th || "-",
+    prov: x.geocode?.province_name?.th || "-",
+    storage: x.dam_storage,
+    normal: x.dam?.normal_storage,
+    pct: x.dam_storage_percent,
+    inflow: x.dam_inflow,
+    released: x.dam_released,
+    date: x.dam_date || "",
+    lat: x.dam?.dam_lat, lng: x.dam?.dam_long,
+    dist: (x.dam?.dam_lat) ? haversine(LAT,LON,x.dam.dam_lat,x.dam.dam_long) : 99999,
+    inChai: (x.geocode?.amphoe_name?.th === "ชัยบุรี" && x.geocode?.province_name?.th === "สุราษฎร์ธานี")
+  };
+}
+
+function pbar(pct){
+  if(pct==null) return '<span class="r0">-</span>';
+  const p = Math.max(0, Math.min(100, pct));
+  let cls = "lvl-mid";
+  if(pct < 30) cls = "lvl-low";
+  else if(pct >= 100) cls = "lvl-full";
+  else if(pct >= 80) cls = "lvl-high";
+  return '<span class="pbar"><span class="pfill '+cls+'" style="width:'+p+'%"></span>'
+       + '<span class="ptext">'+pct.toFixed(0)+'%</span></span>';
+}
+
+function renderDams(all){
+  const RADIUS = 80; // กม.
+  const rows = all
+    .filter(s => s.name !== "-" && s.name !== "ไม่มีชื่อ")
+    .filter(s => s.inChai || s.dist <= RADIUS)
+    .sort((a,b) => a.dist - b.dist);
+
+  // กราฟแท่ง: % ความจุ (เรียงตามระยะห่าง)
+  const damColor = pct => pct>=100?'#ef4444':pct>=80?'#22c55e':pct>=30?'#3b82f6':'#f59e0b';
+  let chart = "";
+  for(const s of rows){
+    if(s.pct==null) continue;
+    const w = Math.max(0, Math.min(100, s.pct));
+    chart += '<div class="hrow '+(s.inChai?'hl':'')+'">'
+      + '<div class="hlabel" title="'+s.name+' ('+s.amphoe+')">'+s.name.replace(/^อ่างเก็บน้ำ/,'อ่างฯ')+'</div>'
+      + '<div class="htrack"><div class="hbarfill" style="width:'+w+'%;background:'+damColor(s.pct)+'"></div></div>'
+      + '<div class="hval">'+s.pct.toFixed(0)+'%</div></div>';
+  }
+
+  let body = "";
+  for(const s of rows){
+    body += '<tr class="'+(s.inChai?'inchai':'')+'">'
+      + '<td>'+s.name+(s.inChai?'<span class="badge">ชัยบุรี</span>':'')+'</td>'
+      + '<td>'+s.size+'</td>'
+      + '<td>'+s.amphoe+' / '+s.prov+'</td>'
+      + '<td>'+s.dist.toFixed(0)+'</td>'
+      + '<td>'+(s.storage==null?'-':s.storage.toLocaleString('th-TH',{maximumFractionDigits:1}))+'</td>'
+      + '<td>'+(s.normal==null?'-':s.normal.toLocaleString('th-TH',{maximumFractionDigits:1}))+'</td>'
+      + '<td>'+pbar(s.pct)+'</td>'
+      + '</tr>';
+  }
+  const dt = rows[0]?.date || "";
+
+  document.getElementById("dams").innerHTML = `
+    <h2>💧 ปริมาณน้ำเขื่อน / อ่างเก็บน้ำใกล้เคียง
+      <span class="badge">รัศมี ${RADIUS} กม. · ${rows.length} แห่ง</span>
+      ${dt?'<span class="badge">ข้อมูล '+dt+'</span>':''}
+    </h2>
+    <div class="note">% ความจุอ่าง — เรียงจากใกล้ไปไกล · ส้ม &lt;30% (น้ำน้อย) · ฟ้า 30–80% · เขียว 80–99% · แดง ≥100% (เต็ม/ล้น) · ชื่อสีฟ้า = อยู่ในอ.ชัยบุรี</div>
+    <div class="hchart">${chart || '<div class="note">ไม่มีข้อมูล % ความจุ</div>'}</div>
+    <details>
+      <summary>ดูแบบตาราง (น้ำกักเก็บ / ระดับปกติ — ล้าน ลบ.ม.)</summary>
+      <div class="stwrap">
+        <table class="sttable">
+          <thead><tr>
+            <th>เขื่อน / อ่างเก็บน้ำ</th><th>ขนาด</th><th>อำเภอ / จังหวัด</th><th>ห่าง (กม.)</th>
+            <th>น้ำกักเก็บ</th><th>ระดับปกติ</th><th>% ความจุ</th>
+          </tr></thead>
+          <tbody>${body}</tbody>
+        </table>
+      </div>
+    </details>
+    <div class="note">หน่วยปริมาณน้ำ: ล้าน ลบ.ม. (MCM) · ที่มา: api-v3.thaiwater.net (สสน.)</div>
+  `;
+}
+
+function loadAll(){ load(); loadStations(); loadDams(); }
+document.getElementById("refresh").addEventListener("click", loadAll);
+loadAll();
+setInterval(loadAll, 15*60*1000); // auto refresh 15 นาที
+</script>
+</body>
+</html>
