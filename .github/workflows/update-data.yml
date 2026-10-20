@@ -1,0 +1,80 @@
+name: อัปเดตข้อมูลและเผยแพร่หน้าเว็บ
+
+# ดึงข้อมูล GISTDA / กรมอุตุฯ / ThaiWater ด้วย secrets แล้ว deploy ไป GitHub Pages
+# (ไม่ commit ไฟล์ข้อมูลกลับเข้า repo — API key จึงไม่ปรากฏในโค้ดหน้าเว็บ)
+#
+# ตั้งค่าครั้งเดียว:
+#   Settings → Pages → Build and deployment → Source = "GitHub Actions"
+#   Settings → Secrets and variables → Actions → New repository secret:
+#     GISTDA_API_KEY, TMD_UID, TMD_UKEY, TMD_NWP_TOKEN,
+#     TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID   (ตัวที่ไม่ใช้เว้นไว้ได้)
+
+on:
+  schedule:
+    - cron: "17 * * * *"     # ทุกชั่วโมง นาทีที่ 17 (UTC)
+    - cron: "53 23 * * *"    # 06:53 น. เวลาไทย — ส่งรายงานประจำวันทาง Telegram
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      report:
+        description: "ส่งรายงานสรุปทาง Telegram รอบนี้"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  PAGE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: เตรียมโฟลเดอร์เว็บ
+        run: |
+          mkdir -p _site/data
+          cp index.html _site/
+          cp chaiburi-weather.html _site/ 2>/dev/null || true
+          touch _site/.nojekyll
+
+      - name: ดึงข้อมูล
+        env:
+          GISTDA_API_KEY: ${{ secrets.GISTDA_API_KEY }}
+          TMD_UID: ${{ secrets.TMD_UID }}
+          TMD_UKEY: ${{ secrets.TMD_UKEY }}
+          TMD_NWP_TOKEN: ${{ secrets.TMD_NWP_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          DAILY_REPORT: ${{ github.event.schedule == '53 23 * * *' || inputs.report == true }}
+        run: |
+          python scripts/fetch_data.py --out _site/data --prev-url "${PAGE_URL}data"
+          ls -la _site/data
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
