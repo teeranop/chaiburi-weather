@@ -69,8 +69,11 @@ THAIWATER_PUBLIC = "https://api-v3.thaiwater.net/api/v1/thaiwater30/public"
 THAIWATER_RAIN = f"{THAIWATER_PUBLIC}/rain_24h"
 THAIWATER_WL = f"{THAIWATER_PUBLIC}/waterlevel_load"
 RAIN_STN_ID, RAIN_STN_NAME = 827, "อบต.ชัยบุรี"         # สถานีฝนสะสมย้อนหลัง (ตรงกับกราฟในหน้าเว็บ)
-WL_RADIUS_KM = 25                                    # สถานีระดับน้ำรอบอำเภอ
+THAIWATER_DAM = "https://api-v3.thaiwater.net/api/v1/thaiwater30/analyst/dam"
+WL_AMPHOE = ("ชัยบุรี", "พระแสง", "เขาพนม")            # อำเภอที่รายงานสถานีระดับน้ำ
 WL_MAX_AGE_H = 24                                    # ไม่ใช้ค่าระดับน้ำที่เก่ากว่านี้
+# อ.เขาพนม จ.กระบี่ ติดต่อกับชัยบุรี น้ำจากเขาพนมมีผลกับปริมาณน้ำของชัยบุรี
+KP_AMPHOE, KP_PROVINCE = "เขาพนม", "กระบี่"
 
 TZ_TH = timezone(timedelta(hours=7))
 UA = "chaiburi-weather/1.0 (+https://github.com/teeranop/chaiburi-weather)"
@@ -614,6 +617,10 @@ def is_chaiburi(place: dict) -> bool:
     return place.get("amphoe") == AMPHOE_TH and place.get("province") == PROVINCE_TH
 
 
+def is_khaophanom(place: dict) -> bool:
+    return place.get("amphoe") == KP_AMPHOE and place.get("province") == KP_PROVINCE
+
+
 def place_label(rec: dict) -> str:
     """ต.X (ในอำเภอ) หรือ ต.X อ.Y (นอกอำเภอ) — กันสับสนสถานีชื่อซ้ำ"""
     if not rec:
@@ -628,6 +635,7 @@ def fetch_thaiwater_rain() -> dict:
     data = http_json(THAIWATER_RAIN, timeout=60)
     best_in, best_near, n_in, n_near = None, None, 0, 0
     int_in, int_near = None, None                     # ฝนรายชั่วโมงแรงสุด
+    kp = {"stations": 0, "max_24h": None, "max_1h": None}   # อ.เขาพนม จ.กระบี่
     for x in data.get("data") or []:
         st = x.get("station") or {}
         lat, lon = num(st.get("tele_station_lat")), num(st.get("tele_station_long"))
@@ -651,9 +659,16 @@ def fetch_thaiwater_rain() -> dict:
                 best_near = rec
             if r1 is not None and (int_near is None or r1 > int_near["rain_1h"]):
                 int_near = rec
+        if is_khaophanom(place):
+            kp["stations"] += 1
+            if r24 is not None and (kp["max_24h"] is None or r24 > kp["max_24h"]["rain_24h"]):
+                kp["max_24h"] = rec
+            if r1 is not None and (kp["max_1h"] is None or r1 > kp["max_1h"]["rain_1h"]):
+                kp["max_1h"] = rec
     return {"stations_in_district": n_in, "stations_nearby": n_near,
             "max_in_district": best_in, "max_nearby": best_near,
-            "max_1h_in_district": int_in, "max_1h_nearby": int_near}
+            "max_1h_in_district": int_in, "max_1h_nearby": int_near,
+            "khaophanom": kp}
 
 
 def wl_status(pct):
@@ -669,7 +684,7 @@ def wl_status(pct):
 
 
 def fetch_waterlevel() -> list:
-    """ระดับน้ำ (% ของตลิ่ง) จากสถานีโทรมาตร ThaiWater รอบอำเภอ — เรียงจากสูงไปต่ำ"""
+    """ระดับน้ำ (% ของตลิ่ง) จากสถานีโทรมาตร ThaiWater ในอำเภอ WL_AMPHOE — เรียงจากสูงไปต่ำ"""
     data = http_json(THAIWATER_WL, timeout=90)
     rows = ((data.get("waterlevel_data") or {}).get("data")) or []
     cutoff = now_th() - timedelta(hours=WL_MAX_AGE_H)
@@ -681,9 +696,9 @@ def fetch_waterlevel() -> list:
         if lat is None or lon is None or pct is None:
             continue
         place = tw_place(x.get("geocode"))
-        dist = haversine(LAT, LON, lat, lon)
-        if dist > WL_RADIUS_KM and not is_chaiburi(place):
+        if place["amphoe"] not in WL_AMPHOE:
             continue
+        dist = haversine(LAT, LON, lat, lon)
         try:
             t = datetime.strptime(x.get("waterlevel_datetime") or "", "%Y-%m-%d %H:%M").replace(tzinfo=TZ_TH)
         except ValueError:
@@ -698,6 +713,23 @@ def fetch_waterlevel() -> list:
             "msl": num(x.get("waterlevel_msl")), "bank": num(st.get("min_bank")),
         })
     out.sort(key=lambda r: -r["pct"])
+    return out
+
+
+def fetch_kp_dams() -> list:
+    """อ่างเก็บน้ำใน อ.เขาพนม จ.กระบี่ (เช่น อ่างฯ บางกำปรัด) — % ความจุล่าสุด"""
+    d = http_json(THAIWATER_DAM, timeout=90).get("data") or {}
+    out = []
+    for x in (d.get("dam_daily") or []) + (d.get("dam_medium") or []):   # เขื่อนใหญ่ + อ่างฯ ขนาดกลาง
+        place = tw_place(x.get("geocode"))
+        pct = num(x.get("dam_storage_percent"))
+        if not is_khaophanom(place) or pct is None:
+            continue
+        dam = x.get("dam") or {}
+        out.append({"name": ((dam.get("dam_name") or {}).get("th") or "").strip(), **place,
+                    "pct": round(pct, 1), "storage": num(x.get("dam_storage")),
+                    "normal": num(dam.get("normal_storage")), "date": x.get("dam_date")})
+    out.sort(key=lambda d: -d["pct"])
     return out
 
 
@@ -748,7 +780,8 @@ def wl_label(r: dict) -> str:
 
 
 def assess(flood: dict, tmd: dict, tw: dict | None, wl: list | None = None,
-           rh: dict | None = None, nwin: dict | None = None) -> tuple[int, list]:
+           rh: dict | None = None, nwin: dict | None = None,
+           kp_dams: list | None = None) -> tuple[int, list]:
     reasons, level = [], 0
 
     def bump(lv, why):
@@ -795,6 +828,15 @@ def assess(flood: dict, tmd: dict, tw: dict | None, wl: list | None = None,
             bump(2, f"ระดับน้ำ{wl_label(top)} {top['pct']:.0f}% ของตลิ่ง — ล้นตลิ่ง")
         elif top["pct"] >= WL_WATCH:
             bump(1, f"ระดับน้ำ{wl_label(top)} {top['pct']:.0f}% ของตลิ่ง — น้ำมาก")
+
+    # --- อ.เขาพนม จ.กระบี่ (พื้นที่ติดต่อ น้ำไหลมาชัยบุรี)
+    kp = (tw or {}).get("khaophanom") or {}
+    k = kp.get("max_24h")
+    if k and (k.get("rain_24h") or 0) >= RAIN_VERY_HEAVY:
+        bump(1, f"ฝนหนักมากที่ อ.เขาพนม {k['rain_24h']:.0f} มม. ({k['name']} ต.{k['tambon']}) — น้ำอาจไหลมาชัยบุรี")
+    for d in kp_dams or []:
+        if d["pct"] >= 100:
+            bump(1, f"{d['name']} อ.เขาพนม {d['pct']:.0f}% ของความจุ — อาจมีการระบายน้ำ")
 
     # --- พยากรณ์ฝน 24 ชม. ข้างหน้า (NWP กรมอุตุฯ)
     if nwin:
@@ -871,8 +913,18 @@ def build_message(summary: dict, flood: dict, tmd: dict, header: str) -> str:
         lines.append("🌊 ระดับน้ำ (% ของตลิ่ง): " + " · ".join(
             f"{esc(r['name'])} {esc(place_label(r))} {r['pct']:.0f}%" for r in wl[:3]))
 
-    # ฝน 24 ชม. / แรงสุดรายชั่วโมง / สะสม
+    # อ.เขาพนม จ.กระบี่: ฝนสูงสุด + อ่างเก็บน้ำ
     tw = summary.get("thaiwater") or {}
+    kp = tw.get("khaophanom") or {}
+    parts = []
+    k = kp.get("max_24h")
+    if k and k.get("rain_24h") is not None:
+        parts.append(f"ฝน 24 ชม. สูงสุด {k['rain_24h']} มม. ({esc(k['name'])} ต.{esc(k['tambon'])})")
+    parts += [f"{esc(d['name'].replace('อ่างเก็บน้ำ', 'อ่างฯ '))} {d['pct']:.0f}%" for d in summary.get("kp_dams") or []]
+    if parts:
+        lines.append(f"⛰️ อ.{KP_AMPHOE} จ.{KP_PROVINCE}: " + " · ".join(parts))
+
+    # ฝน 24 ชม. / แรงสุดรายชั่วโมง / สะสม
     b = tw.get("max_in_district") or tw.get("max_nearby")
     if b:
         lines.append(f"🌧 ฝน 24 ชม. สูงสุด: {b['rain_24h']} มม. ({esc(b['name'])} {esc(place_label(b))})")
@@ -895,10 +947,10 @@ def build_message(summary: dict, flood: dict, tmd: dict, header: str) -> str:
             dt = datetime.fromisoformat(t) + (timedelta(hours=1) if end else timedelta())
             return ("พรุ่งนี้ " if dt.date().isoformat() != today else "") + dt.strftime("%H:%M")
         if nw.get("start"):
-            lines.append(f"⏱ คาดฝน 24 ชม. ข้างหน้า: {hhmm(nw['start'])}–{hhmm(nw['end'], True)} น. "
+            lines.append(f"⏱ คาดการณ์ฝน 24 ชม. ข้างหน้า: {hhmm(nw['start'])}–{hhmm(nw['end'], True)} น. "
                          f"รวม ~{nw['total']:.0f} มม. (กรมอุตุฯ)")
         else:
-            lines.append("⏱ 24 ชม. ข้างหน้า: ไม่คาดว่าจะมีฝนนัยสำคัญ (กรมอุตุฯ)")
+            lines.append("⏱ คาดการณ์ฝน 24 ชม. ข้างหน้า: ไม่มีฝนนัยสำคัญ (กรมอุตุฯ)")
     fc = [d for d in (tmd.get("forecast") or []) if d["date"] > now_th().date().isoformat()]
     if fc:
         nxt = " · ".join(f"{int(d['date'][8:])}/{int(d['date'][5:7])} {d['rain'] or 0:.0f}มม." for d in fc[:3])
@@ -943,9 +995,15 @@ def main():
     except Exception as e:                              # noqa: BLE001
         log(f"ThaiWater ฝนสะสม ล้มเหลว: {e}")
         rh = None
+    try:
+        kp_dams = fetch_kp_dams()
+        log("อ่างเก็บน้ำ อ.เขาพนม: " + (", ".join(f"{d['name']} {d['pct']}%" for d in kp_dams) or "ไม่มีข้อมูล"))
+    except Exception as e:                              # noqa: BLE001
+        log(f"ThaiWater อ่างเก็บน้ำ ล้มเหลว: {e}")
+        kp_dams = None
     nwin = nwp_rain_window(tmd.get("hourly"))
 
-    level, reasons = assess(flood, tmd, tw, wl, rh, nwin)
+    level, reasons = assess(flood, tmd, tw, wl, rh, nwin, kp_dams)
     summary = {
         "generated_at": iso(now_th()),
         "area": {"amphoe": AMPHOE_TH, "province": PROVINCE_TH, "lat": LAT, "lon": LON, "amphoe_code": AMPHOE_CODE},
@@ -955,6 +1013,7 @@ def main():
         "waterlevel": wl,
         "rain_history": {k: v for k, v in rh.items() if k != "days"} if rh else None,
         "nwp_next24": nwin,
+        "kp_dams": kp_dams,
         "sources": {
             "gistda": "error" not in flood or bool(flood.get("periods")),
             "gistda_stale": bool(flood.get("stale")),
