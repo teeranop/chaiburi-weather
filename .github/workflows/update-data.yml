@@ -60,6 +60,8 @@ jobs:
           TMD_NWP_TOKEN: ${{ secrets.TMD_NWP_TOKEN }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          MOPH_CLIENT_ID: ${{ secrets.MOPH_CLIENT_ID }}
+          MOPH_SECRET: ${{ secrets.MOPH_SECRET }}
           DAILY_REPORT: ${{ github.event.schedule == '53 23 * * *' || inputs.report == true }}
         run: |
           python scripts/fetch_data.py --out _site/data --prev-url "${PAGE_URL}data"
