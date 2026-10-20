@@ -39,7 +39,7 @@
   .tabs a:hover{background:rgba(255,255,255,.12)}
   .tabs a.active{border-bottom-color:#fff;color:#fff}
   .wrap{max-width:1100px;margin:0 auto;padding:18px 16px 28px}
-  #content,#stations,#dams,#sec-rain{scroll-margin-top:130px}
+  #content,#stations,#dams,#sec-rain,#tmd,#flood{scroll-margin-top:130px}
   .updated{font-size:.82rem;color:#eaf2fb;text-align:right;margin-top:3px}
   .btn{background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.55);padding:8px 16px;border-radius:9px;font-weight:700;cursor:pointer;font-size:.95rem}
   .btn:hover{background:rgba(255,255,255,.3)}
@@ -72,6 +72,7 @@
   .sttable th,.sttable td{padding:10px 12px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
   .sttable th:first-child,.sttable td:first-child,
   .sttable th:nth-child(2),.sttable td:nth-child(2){text-align:left}
+  .sttable.num2 th:nth-child(2),.sttable.num2 td:nth-child(2){text-align:right}
   .sttable th{color:var(--accent);font-weight:700;position:sticky;top:0;background:var(--card)}
   .sttable tr.inchai td{background:rgba(3,105,161,.09)}
   .sttable tr.inchai td:first-child{font-weight:700}
@@ -116,6 +117,36 @@
   details{margin-top:14px}
   details summary{cursor:pointer;color:var(--accent);font-size:1rem;padding:6px 0;font-weight:600}
   @media(max-width:560px){html{font-size:14px}.hrow{grid-template-columns:104px 1fr auto}.hrow .hval{min-width:52px;font-size:.85rem}}
+  /* สรุปสถานการณ์ */
+  .summary{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;border-left:8px solid var(--lv,#15803d);margin-bottom:16px}
+  .summary .lvbadge{background:var(--lv,#15803d);color:#fff;border-radius:12px;padding:10px 18px;font-size:1.35rem;font-weight:800;white-space:nowrap}
+  .summary .lvbody{flex:1;min-width:240px}
+  .summary .lvtitle{font-weight:800;font-size:1.1rem;color:var(--brand1)}
+  .summary ul{margin:6px 0 0 18px}
+  .summary li{margin:3px 0}
+  .srcchips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .chip{font-size:.78rem;border-radius:999px;padding:2px 10px;background:#e8eef5;color:var(--muted);font-weight:600}
+  .chip.ok{background:rgba(21,128,61,.12);color:var(--good)}
+  .chip.bad{background:rgba(220,38,38,.1);color:#dc2626}
+  /* น้ำท่วม (GISTDA) */
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:4px 0 10px}
+  .seg button{background:var(--card);border:0;padding:7px 14px;font:inherit;font-weight:700;color:var(--muted);cursor:pointer;border-right:1px solid var(--line)}
+  .seg button:last-child{border-right:0}
+  .seg button.on{background:var(--accent);color:#fff}
+  .fcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
+  .fcard{background:var(--card2);border-radius:12px;padding:12px 14px}
+  .fcard .k{font-size:.85rem;color:var(--muted)}
+  .fcard .v{font-size:1.4rem;font-weight:800}
+  .fcard.hot .v{color:#dc2626}
+  #floodmap{height:380px;border-radius:14px;overflow:hidden;margin-top:14px;border:1px solid var(--line);z-index:0}
+  .okbox{background:rgba(21,128,61,.08);border:1px solid rgba(21,128,61,.25);color:var(--good);border-radius:12px;padding:12px 14px;font-weight:600;margin-top:6px}
+  /* กรมอุตุฯ */
+  .warn{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:10px;background:var(--card2)}
+  .warn.rel{border-color:var(--warn);background:rgba(217,119,6,.07)}
+  .warn .wt{font-weight:800}
+  .warn .wd{font-size:.82rem;color:var(--muted);margin-top:2px}
+  .warn .wx{font-size:.93rem;margin-top:6px;line-height:1.6}
+  .subh{font-weight:800;color:var(--brand1);margin:18px 0 4px;font-size:1.02rem}
   .note{font-size:.92rem;color:var(--muted);line-height:1.65;margin-top:10px}
   .loading{color:var(--muted);padding:30px;text-align:center;font-size:1.05rem}
   .err{color:#dc2626}
@@ -140,10 +171,16 @@
     <a href="#content">สภาพอากาศ &amp; พยากรณ์</a>
     <a href="#sec-rain">ฝนสะสม</a>
     <a href="#stations">จุดวัดน้ำฝน</a>
+    <a href="#tmd">กรมอุตุฯ/เตือนภัย</a>
+    <a href="#flood">น้ำท่วม (ดาวเทียม)</a>
     <a href="#dams">เขื่อน/อ่างเก็บน้ำ</a>
   </nav>
 </div>
 <div class="wrap">
+
+  <div class="card summary" id="summary">
+    <div class="loading">กำลังโหลดสรุปสถานการณ์…</div>
+  </div>
 
   <div id="content">
     <div class="loading">กำลังโหลดข้อมูล…</div>
@@ -153,13 +190,21 @@
     <div class="loading">กำลังโหลดจุดวัดน้ำฝนจริงจาก ThaiWater…</div>
   </div>
 
+  <div class="card" id="tmd" style="margin-top:16px">
+    <div class="loading">กำลังโหลดข้อมูลกรมอุตุนิยมวิทยา…</div>
+  </div>
+
+  <div class="card" id="flood" style="margin-top:16px">
+    <div class="loading">กำลังโหลดพื้นที่น้ำท่วมจากดาวเทียม GISTDA…</div>
+  </div>
+
   <div class="card" id="dams" style="margin-top:16px">
     <div class="loading">กำลังโหลดข้อมูลปริมาณน้ำเขื่อน/อ่างเก็บน้ำ…</div>
   </div>
 
   <footer>
-    ข้อมูลจาก Open-Meteo (โมเดลพยากรณ์/วิเคราะห์ความละเอียดสูง) · เขตเวลา Asia/Bangkok ·
-    อัปเดตอัตโนมัติทุก 15 นาที
+    ข้อมูลจาก Open-Meteo · ThaiWater (สสน.) · กรมอุตุนิยมวิทยา · GISTDA Disaster Platform ·
+    เขตเวลา Asia/Bangkok · หน้าเว็บรีเฟรชทุก 15 นาที (ข้อมูลกรมอุตุฯ/GISTDA ปรับปรุงทุกชั่วโมง)
   </footer>
 </div>
 
@@ -290,6 +335,7 @@ function render(d){
       <a href="https://www.thaiwater.net/water/rain" target="_blank">ThaiWater (คลังข้อมูลน้ำแห่งชาติ)</a>
       <a href="https://www.tmd.go.th/region/south" target="_blank">กรมอุตุนิยมวิทยา ภาคใต้</a>
       <a href="https://hydro-8.rid.go.th/" target="_blank">ศูนย์อุทกวิทยาชลประทานภาคใต้</a>
+      <a href="https://disaster.gistda.or.th/" target="_blank">GISTDA Disaster Platform</a>
       <div class="note">
         การ์ดด้านบน (ปัจจุบัน/พยากรณ์/ฝนสะสม 30 วัน) มาจากโมเดล Open-Meteo ความละเอียด ~1–11 กม.
         ส่วน "จุดวัดน้ำฝนจริง" ด้านบนเป็นค่าจากมาตรวัดฝน (rain gauge) จริงผ่าน ThaiWater
@@ -533,7 +579,233 @@ function renderDams(all){
   `;
 }
 
-function loadAll(){ load(); loadStations(); loadDams(); }
+// ===== ข้อมูลที่ GitHub Actions เตรียมไว้ใน data/ (GISTDA / กรมอุตุฯ / สรุประดับ) =====
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const nf = (v, dp=0) => (v==null || isNaN(v)) ? "-" : Number(v).toLocaleString("th-TH",{maximumFractionDigits:dp, minimumFractionDigits:dp});
+const thDT = s => { if(!s) return "-"; const d = new Date(s); return isNaN(d) ? esc(s) : d.toLocaleString("th-TH",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}); };
+const thD = s => { if(!s) return "-"; const d = new Date(s+"T00:00:00"); return isNaN(d) ? esc(s) : d.toLocaleDateString("th-TH",{day:"numeric",month:"short",year:"2-digit"}); };
+const NO_DATA = 'ยังไม่มีไฟล์ข้อมูล — ตรวจสอบว่า GitHub Actions "อัปเดตข้อมูลและเผยแพร่หน้าเว็บ" ทำงานแล้ว';
+
+async function loadLocal(name){
+  const res = await fetch("data/" + name + "?t=" + Date.now(), {cache:"no-store"});
+  if(!res.ok) throw new Error(res.status === 404 ? NO_DATA : "HTTP " + res.status);
+  return res.json();
+}
+
+// ---------- สรุประดับสถานการณ์
+async function loadSummary(){
+  const box = document.getElementById("summary");
+  try{
+    const s = await loadLocal("summary.json");
+    const src = s.sources || {};
+    const chip = (ok, label) => '<span class="chip '+(ok?'ok':'bad')+'">'+(ok?'✓':'✕')+' '+label+'</span>';
+    const reasons = (s.reasons||[]).length
+      ? '<ul>' + s.reasons.map(r => '<li>'+esc(r.text)+'</li>').join("") + '</ul>'
+      : '<div class="note" style="margin-top:4px">ไม่พบฝนหนัก ประกาศเตือนภัยที่เกี่ยวข้อง หรือพื้นที่น้ำท่วมจากดาวเทียมในอำเภอ</div>';
+    box.style.setProperty("--lv", s.color || "#15803d");
+    box.innerHTML = `
+      <div class="lvbadge">${esc(s.label || "-")}</div>
+      <div class="lvbody">
+        <div class="lvtitle">สรุปสถานการณ์ฝน/น้ำท่วม อ.ชัยบุรี</div>
+        ${reasons}
+        <div class="srcchips">
+          ${chip(src.thaiwater,"ThaiWater")}
+          ${chip(src.tmd_obs,"กรมอุตุฯ ตรวจวัด")}
+          ${chip(src.tmd_warnings,"ข่าวเตือนภัย")}
+          ${chip(src.tmd_forecast,"พยากรณ์กรมอุตุฯ")}
+          ${chip(src.gistda && !src.gistda_stale,"GISTDA น้ำท่วม")}
+        </div>
+        <div class="note" style="margin-top:6px">ประมวลผลเมื่อ ${thDT(s.generated_at)} · ระดับคำนวณอัตโนมัติจากเกณฑ์ฝนกรมอุตุฯ (หนัก ≥35.1 / หนักมาก ≥90.1 มม.) ข่าวเตือนภัย และพื้นที่น้ำท่วมจากดาวเทียม — ใช้ประกอบการตัดสินใจ ไม่ใช่ประกาศทางราชการ</div>
+      </div>`;
+  }catch(e){
+    box.innerHTML = '<div class="note err">'+esc(e.message)+'</div>';
+  }
+}
+
+// ---------- กรมอุตุนิยมวิทยา
+async function loadTmd(){
+  const box = document.getElementById("tmd");
+  try{
+    const t = await loadLocal("tmd.json");
+    const errs = t.errors || {};
+
+    // ข่าวเตือนภัย
+    const warns = (t.warnings||[]).slice().sort((a,b)=>(b.relevant-a.relevant));
+    let wHtml = warns.length ? "" : '<div class="note">ไม่มีข่าวเตือนภัยในขณะนี้</div>';
+    for(const w of warns.slice(0,6)){
+      wHtml += '<div class="warn '+(w.relevant?'rel':'')+'">'
+        + '<div class="wt">'+(w.relevant?'⚠️ ':'')+esc(w.title)+'</div>'
+        + '<div class="wd">ประกาศ '+thDT(w.announced)+(w.relevant?' · <b>เกี่ยวข้องกับภาคใต้/สุราษฎร์ธานี</b>':'')+'</div>'
+        + (w.description ? '<details><summary>รายละเอียด</summary><div class="wx">'+esc(w.description)+'</div></details>' : '')
+        + (w.url ? '<div class="wd"><a href="'+esc(w.url)+'" target="_blank" rel="noopener">เอกสารประกาศ</a></div>' : '')
+        + '</div>';
+    }
+    if(errs.warnings) wHtml += '<div class="note err">ข่าวเตือนภัย: '+esc(errs.warnings)+'</div>';
+
+    // พยากรณ์ NWP 7 วัน
+    let fHtml;
+    if((t.forecast||[]).length){
+      let rows = "";
+      for(const d of t.forecast){
+        rows += '<tr><td>'+thD(d.date)+'</td><td>'+esc(d.cond_th||"-")+'</td>'
+          + '<td class="'+rainClass(d.rain)+'">'+nf(d.rain,1)+'</td>'
+          + '<td>'+nf(d.tmax,0)+'° / '+nf(d.tmin,0)+'°</td><td>'+nf(d.rh,0)+'%</td></tr>';
+      }
+      fHtml = '<div class="stwrap"><table class="sttable"><thead><tr><th>วันที่</th><th>สภาพอากาศ</th><th>ฝน (มม.)</th><th>สูงสุด/ต่ำสุด</th><th>ความชื้น</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
+        + '<div class="note">พยากรณ์เชิงตัวเลข (NWP) ของกรมอุตุฯ ที่พิกัดที่ว่าการอำเภอ — เทียบกับการ์ดพยากรณ์ Open-Meteo ด้านบน</div>';
+    }else{
+      fHtml = '<div class="note">'+esc(errs.forecast || "ไม่มีข้อมูลพยากรณ์")+'</div>';
+    }
+
+    // สถานีตรวจอากาศ
+    const today = {}; for(const r of (t.today||[])) today[r.wmo] = r;
+    let sRows = "";
+    for(const r of (t.obs3h||[])){
+      const td = today[r.wmo];
+      sRows += '<tr><td>'+esc(r.name)+'</td><td>'+nf(r.dist_km,0)+'</td>'
+        + '<td class="'+rainClass(r.rain)+'">'+nf(r.rain,1)+'</td>'
+        + '<td class="'+rainClass(td?.rain)+'">'+nf(td?.rain,1)+'</td>'
+        + '<td>'+nf(r.temp,1)+'</td><td>'+nf(r.rh,0)+'</td>'
+        + '<td class="r0">'+thDT(r.time)+'</td></tr>';
+    }
+    const sHtml = sRows
+      ? '<div class="stwrap"><table class="sttable num2"><thead><tr><th>สถานี</th><th>ห่าง (กม.)</th><th>ฝนรอบล่าสุด</th><th>ฝน 24 ชม. (07:00)</th><th>อุณหภูมิ °C</th><th>ความชื้น %</th><th>เวลาตรวจ</th></tr></thead><tbody>'+sRows+'</tbody></table></div>'
+      : '<div class="note">'+esc(errs.obs3h || "ไม่มีข้อมูลสถานี")+'</div>';
+
+    box.innerHTML = `
+      <h2>🏛️ กรมอุตุนิยมวิทยา — เตือนภัย / พยากรณ์ / สถานีตรวจอากาศ
+        ${t.stale?'<span class="badge" style="background:#fde68a;color:#92400e">ข้อมูลรอบก่อน</span>':''}
+      </h2>
+      <div class="subh">📢 ข่าวเตือนภัยสภาพอากาศ</div>${wHtml}
+      <div class="subh">📅 พยากรณ์ 7 วัน (กรมอุตุฯ)</div>${fHtml}
+      <div class="subh">🌡️ สถานีตรวจอากาศใกล้เคียง</div>${sHtml}
+      <div class="note">ที่มา: data.tmd.go.th · ปรับปรุง ${thDT(t.generated_at)}${t.demo_key?' · ใช้ demo key (ควรลงทะเบียน uid/ukey ของหน่วยงาน)':''}</div>`;
+  }catch(e){
+    box.innerHTML = '<h2>🏛️ กรมอุตุนิยมวิทยา</h2><div class="note err">'+esc(e.message)+'</div>';
+  }
+}
+
+// ---------- น้ำท่วมจากดาวเทียม GISTDA
+const PERIOD_LABEL = {"1day":"1 วัน","3days":"3 วัน","7days":"7 วัน","30days":"30 วัน"};
+let FLOOD = null, FLOODMAP = null, FREQ = null, floodPeriod = "7days";
+
+async function loadFlood(){
+  const box = document.getElementById("flood");
+  try{
+    const [f, m, q] = await Promise.all([
+      loadLocal("flood.json"),
+      loadLocal("flood_map.json").catch(()=>null),
+      loadLocal("flood_freq.json").catch(()=>null)
+    ]);
+    FLOOD = f; FLOODMAP = m; FREQ = q;
+    if(!f.periods || !Object.keys(f.periods).length){
+      box.innerHTML = '<h2>🛰️ พื้นที่น้ำท่วมจากดาวเทียม — GISTDA</h2><div class="note err">'+esc(f.error || "ไม่มีข้อมูล")+'</div>';
+      return;
+    }
+    if(!f.periods[floodPeriod]) floodPeriod = Object.keys(f.periods)[0];
+    renderFlood();
+  }catch(e){
+    box.innerHTML = '<h2>🛰️ พื้นที่น้ำท่วมจากดาวเทียม — GISTDA</h2><div class="note err">'+esc(e.message)+'</div>';
+  }
+}
+
+function renderFlood(){
+  const f = FLOOD, p = f.periods[floodPeriod] || {};
+  const d = p.district || {}, b = p.bbox || {};
+  const seg = Object.keys(PERIOD_LABEL).filter(k => f.periods[k])
+    .map(k => '<button data-p="'+k+'" class="'+(k===floodPeriod?'on':'')+'">'+PERIOD_LABEL[k]+'</button>').join("");
+
+  let tb = "";
+  for(const t of (p.tambons||[])){
+    tb += '<tr><td>'+esc(t.tambon)+'</td><td>'+nf(t.area_rai,1)+'</td><td>'+nf(t.population)+'</td><td>'+nf(t.building)+'</td><td>'+nf(t.school)+'</td><td>'+nf(t.hospital)+'</td></tr>';
+  }
+
+  const hot = (d.area_rai||0) > 0;
+  const status = hot
+    ? ''
+    : '<div class="okbox">ดาวเทียมไม่พบพื้นที่น้ำท่วมในอ.ชัยบุรี ช่วง '+PERIOD_LABEL[floodPeriod]+' ล่าสุด'
+      + ((b.area_rai||0)>0 ? ' (แต่พบในพื้นที่ข้างเคียง '+nf(b.area_rai,0)+' ไร่)' : '')+'</div>';
+
+  let freqHtml = "";
+  if(FREQ && !FREQ.error){
+    const rows = (FREQ.district_codes_matched ? FREQ.district : FREQ.bbox) || [];
+    if(rows.length){
+      const tot = rows.reduce((s,r)=>s+(r.area_rai||0),0);
+      freqHtml = '<details><summary>พื้นที่น้ำท่วมซ้ำซาก (สถิติย้อนหลัง GISTDA) — รวม '+nf(tot,0)+' ไร่</summary>'
+        + '<div class="stwrap"><table class="sttable num2"><thead><tr><th>ท่วมซ้ำ (ครั้ง)</th><th>พื้นที่ (ไร่)</th></tr></thead><tbody>'
+        + rows.map(r=>'<tr><td>'+r.freq+'</td><td>'+nf(r.area_rai,0)+'</td></tr>').join("")
+        + '</tbody></table></div><div class="note">'
+        + (FREQ.district_codes_matched ? 'เฉพาะในอ.ชัยบุรี' : 'ในกรอบแผนที่รอบอ.ชัยบุรี')
+        + (FREQ.truncated ? ' · ข้อมูลถูกตัดตามจำนวนหน้าที่ดึง' : '')
+        + ' · ปรับปรุง '+thDT(FREQ.generated_at)+'</div></details>';
+    }
+  }
+
+  document.getElementById("flood").innerHTML = `
+    <h2>🛰️ พื้นที่น้ำท่วมจากดาวเทียม — GISTDA
+      ${p.latest_satellite_date?'<span class="badge">ภาพล่าสุด '+thD(p.latest_satellite_date)+'</span>':''}
+      ${f.stale?'<span class="badge" style="background:#fde68a;color:#92400e">ข้อมูลรอบก่อน</span>':''}
+    </h2>
+    <div class="seg" id="floodseg">${seg}</div>
+    <div class="fcards">
+      <div class="fcard ${hot?'hot':''}"><div class="k">พื้นที่น้ำท่วมในอำเภอ</div><div class="v">${nf(d.area_rai,0)} ไร่</div></div>
+      <div class="fcard"><div class="k">ประชากรในพื้นที่ท่วม</div><div class="v">${nf(d.population)}</div></div>
+      <div class="fcard"><div class="k">อาคาร</div><div class="v">${nf(d.building)}</div></div>
+      <div class="fcard"><div class="k">โรงเรียน / รพ.</div><div class="v">${nf(d.school)} / ${nf(d.hospital)}</div></div>
+      <div class="fcard"><div class="k">รวมพื้นที่ข้างเคียง (กรอบแผนที่)</div><div class="v">${nf(b.area_rai,0)} ไร่</div></div>
+    </div>
+    ${status}
+    <div id="floodmap"></div>
+    <div class="maplegend">
+      <span><i style="background:#1d4ed8"></i>น้ำท่วมในอ.ชัยบุรี</span>
+      <span><i style="background:#7dd3fc"></i>น้ำท่วมพื้นที่ข้างเคียง</span>
+      <span>📍 ที่ว่าการอำเภอ</span>
+    </div>
+    ${tb ? '<details open><summary>แยกรายตำบล</summary><div class="stwrap"><table class="sttable num2"><thead><tr><th>ตำบล</th><th>พื้นที่ (ไร่)</th><th>ประชากร</th><th>อาคาร</th><th>รร.</th><th>รพ.</th></tr></thead><tbody>'+tb+'</tbody></table></div></details>' : ''}
+    ${freqHtml}
+    <div class="note">
+      พื้นที่น้ำท่วมแปลจากภาพดาวเทียม (ส่วนใหญ่เป็นเรดาร์ Sentinel-1) ปรับปรุงประมาณวันละ 1–2 ครั้ง — ไม่ใช่ข้อมูลเรียลไทม์และไม่มีระดับความลึกน้ำ
+      ช่วงที่ไม่มีภาพใหม่ผ่านพื้นที่ จะไม่พบน้ำท่วมแม้มีน้ำท่วมจริง ประชากร/อาคารนับต่อเซลล์ H3 ครั้งเดียว
+      ${p.truncated?'<br><b>ข้อมูลช่วงนี้ถูกตัดตามจำนวนหน้าที่ดึง (พื้นที่ท่วมกว้างมาก)</b>':''}
+      <br>ที่มา: GISTDA Disaster Platform (api-gateway.gistda.or.th) · ปรับปรุง ${thDT(f.generated_at)}
+      ${f.error?'<br><span class="err">'+esc(f.error)+'</span>':''}
+    </div>`;
+
+  document.querySelectorAll("#floodseg button").forEach(btn =>
+    btn.addEventListener("click", () => { floodPeriod = btn.dataset.p; renderFlood(); }));
+  drawFloodMap();
+}
+
+function drawFloodMap(){
+  if(typeof L === "undefined") return;
+  if(window._floodmap){ try{ window._floodmap.remove(); }catch(e){} }
+  const map = L.map("floodmap",{scrollWheelZoom:false}).setView([LAT,LON], 11);
+  window._floodmap = map;
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:18, attribution:"© OpenStreetMap · น้ำท่วม: GISTDA"}).addTo(map);
+  L.marker([LAT,LON],{icon:L.divIcon({html:"📍",className:"",iconSize:[26,26],iconAnchor:[13,24]})})
+    .addTo(map).bindPopup("<b>📍 ที่ว่าการอ.ชัยบุรี</b>");
+  const bb = FLOOD.bbox;
+  if(bb) L.rectangle([[bb[1],bb[0]],[bb[3],bb[2]]],{color:"#64748b",weight:1,dashArray:"4 4",fill:false,interactive:false}).addTo(map);
+
+  const feats = (FLOODMAP?.features||[]).filter(x => x.properties.p === floodPeriod);
+  if(feats.length){
+    const layer = L.geoJSON({type:"FeatureCollection",features:feats},{
+      style: ft => ({color: ft.properties.in ? "#1e3a8a" : "#0284c7", weight:.6,
+                     fillColor: ft.properties.in ? "#1d4ed8" : "#7dd3fc", fillOpacity:.6}),
+      onEachFeature: (ft, l) => l.bindPopup(
+        "<b>ต."+esc(ft.properties.tb||"-")+" อ."+esc(ft.properties.ap||"-")+"</b>"
+        + "<br>พื้นที่: "+nf(ft.properties.rai,1)+" ไร่"
+        + "<br>ประชากร (เซลล์): "+nf(ft.properties.pop)
+        + (ft.properties.d ? "<br>ภาพดาวเทียม: "+thD(ft.properties.d) : ""))
+    }).addTo(map);
+    try{ map.fitBounds(layer.getBounds().extend([LAT,LON]), {padding:[20,20], maxZoom:13}); }catch(e){}
+  }else if(bb){
+    map.fitBounds([[bb[1],bb[0]],[bb[3],bb[2]]]);
+  }
+  setTimeout(()=>map.invalidateSize(), 200);
+}
+
+function loadAll(){ load(); loadStations(); loadDams(); loadSummary(); loadTmd(); loadFlood(); }
 document.getElementById("refresh").addEventListener("click", loadAll);
 loadAll();
 setInterval(loadAll, 15*60*1000); // auto refresh 15 นาที
