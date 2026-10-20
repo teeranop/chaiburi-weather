@@ -20,6 +20,8 @@ fetch_data.py — รวบรวมข้อมูลน้ำท่วม/ฝ�
   TMD_UID, TMD_UKEY     uid/ukey ที่ลงทะเบียนกับ data.tmd.go.th (ไม่ตั้ง = ใช้ demo/demokey)
   TMD_NWP_TOKEN         Bearer token ของ TMD NWP API (พยากรณ์ 7 วันรายพิกัด)
   TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID   ส่งแจ้งเตือนเมื่อระดับเปลี่ยน/มีข่าวเตือนใหม่
+  MOPH_CLIENT_ID, MOPH_SECRET           Client_ID / Secret จาก CMS MOPH Notify — ส่งแจ้งเตือนเดียวกันเข้า LINE (LINE OA หมอพร้อม)
+  MOPH_NOTIFY_URL       เปลี่ยน endpoint ของ MOPH Notify (ค่าเริ่มต้น morpromt2f.moph.go.th/api/notify/send)
   DAILY_REPORT=true     บังคับส่งรายงานสรุปประจำวันทาง Telegram
   PAGE_URL              ลิงก์หน้าเว็บที่แนบในข้อความ Telegram
 
@@ -29,6 +31,7 @@ fetch_data.py — รวบรวมข้อมูลน้ำท่วม/ฝ�
 from __future__ import annotations
 
 import argparse
+import html
 import json
 import math
 import os
@@ -69,7 +72,8 @@ THAIWATER_PUBLIC = "https://api-v3.thaiwater.net/api/v1/thaiwater30/public"
 THAIWATER_RAIN = f"{THAIWATER_PUBLIC}/rain_24h"
 THAIWATER_WL = f"{THAIWATER_PUBLIC}/waterlevel_load"
 RAIN_STN_ID, RAIN_STN_NAME = 827, "อบต.ชัยบุรี"         # สถานีฝนสะสมย้อนหลัง (ตรงกับกราฟในหน้าเว็บ)
-THAIWATER_DAM = "https://api-v3.thaiwater.net/api/v1/thaiwater30/analyst/dam"
+MOPH_NOTIFY_URL = "https://morpromt2f.moph.go.th/api/notify/send"   # MOPH Notify (LINE OA หมอพร้อม)
+THAIWATER_DAM ="https://api-v3.thaiwater.net/api/v1/thaiwater30/analyst/dam"
 WL_AMPHOE = ("ชัยบุรี", "พระแสง", "เขาพนม")            # อำเภอที่รายงานสถานีระดับน้ำ
 WL_MAX_AGE_H = 24                                    # ไม่ใช้ค่าระดับน้ำที่เก่ากว่านี้
 # อ.เขาพนม จ.กระบี่ ติดต่อกับชัยบุรี น้ำจากเขาพนมมีผลกับปริมาณน้ำของชัยบุรี
@@ -895,6 +899,38 @@ def tg_send(msg: str):
         return False
 
 
+def html_to_text(msg: str) -> str:
+    """แปลงข้อความ HTML ของ Telegram เป็นข้อความธรรมดาสำหรับ LINE (LINE ไม่รองรับ HTML)"""
+    msg = re.sub(r'<a href="([^"]+)">([^<]+)</a>', r"\2: \1", msg)
+    return html.unescape(re.sub(r"<[^>]+>", "", msg))
+
+
+def moph_send(msg: str):
+    """ส่งข้อความเข้า LINE ผ่าน MOPH Notify (LINE OA หมอพร้อม) — ข้ามถ้าไม่ได้ตั้ง key"""
+    # ค่า Client_ID / Secret จาก CMS MOPH Notify → ส่งเป็น header client-key / secret-key
+    ck, sk = os.environ.get("MOPH_CLIENT_ID"), os.environ.get("MOPH_SECRET")
+    if not ck or not sk:
+        return False
+    url = os.environ.get("MOPH_NOTIFY_URL") or MOPH_NOTIFY_URL
+    body = json.dumps({"messages": [{"type": "text", "text": html_to_text(msg)[:4900]}]}).encode()
+    try:
+        req = urllib.request.Request(url, data=body, method="POST", headers={
+            "User-Agent": UA, "Content-Type": "application/json", "client-key": ck, "secret-key": sk})
+        urllib.request.urlopen(req, timeout=30).read()
+        return True
+    except urllib.error.HTTPError as e:
+        log(f"MOPH Notify ล้มเหลว: HTTP {e.code}")
+    except Exception as e:                              # noqa: BLE001
+        log(f"MOPH Notify ล้มเหลว: {type(e).__name__}")
+    return False
+
+
+def notify(msg: str):
+    """ส่งทุกช่องทางที่ตั้งค่าไว้ (Telegram, LINE หมอพร้อม)"""
+    sent = [name for name, fn in (("Telegram", tg_send), ("LINE หมอพร้อม", moph_send)) if fn(msg)]
+    log("ส่งแจ้งเตือน: " + (", ".join(sent) or "ไม่มีช่องทางที่ตั้งค่าไว้"))
+
+
 def esc(s) -> str:
     return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
@@ -1035,19 +1071,19 @@ def main():
     write_json(os.path.join(args.out, "summary.json"), summary)
     log(f"ระดับ: {summary['label']} ({level}) — {len(reasons)} เหตุผล")
 
-    # ---- แจ้งเตือน Telegram
+    # ---- แจ้งเตือน Telegram / LINE หมอพร้อม
     if args.no_telegram:
         return
     daily = os.environ.get("DAILY_REPORT", "").lower() in ("1", "true", "yes")
     prev_level = prev_summary.get("level")
     new_warn = [t for t in summary["warning_titles"] if t not in (prev_summary.get("warning_titles") or [])]
     if daily:
-        tg_send(build_message(summary, flood, tmd, "รายงานสถานการณ์ฝน/น้ำท่วมประจำวัน"))
+        notify(build_message(summary, flood, tmd, "รายงานสถานการณ์ฝน/น้ำท่วมประจำวัน"))
     elif prev_level is not None and level != prev_level:
         head = "⚠️ ระดับสถานการณ์สูงขึ้น" if level > prev_level else "ℹ️ ระดับสถานการณ์ลดลง"
-        tg_send(build_message(summary, flood, tmd, head))
+        notify(build_message(summary, flood, tmd, head))
     elif prev_summary and new_warn:
-        tg_send(build_message(summary, flood, tmd, "📢 กรมอุตุฯ ออกประกาศเตือนภัยใหม่"))
+        notify(build_message(summary, flood, tmd, "📢 กรมอุตุฯ ออกประกาศเตือนภัยใหม่"))
 
 
 if __name__ == "__main__":
