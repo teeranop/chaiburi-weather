@@ -648,13 +648,14 @@ async function loadSummary(){
         <div class="lvtitle">สรุปสถานการณ์ฝน/น้ำท่วม อ.ชัยบุรี</div>
         ${reasons}
         <div class="srcchips">
-          ${chip(src.thaiwater,"ThaiWater")}
+          ${chip(src.thaiwater,"ThaiWater ฝน")}
+          ${chip(src.waterlevel,"ระดับน้ำ")}
           ${chip(src.tmd_obs,"กรมอุตุฯ ตรวจวัด")}
           ${chip(src.tmd_warnings,"ข่าวเตือนภัย")}
           ${chip(src.tmd_forecast,"พยากรณ์กรมอุตุฯ")}
           ${chip(src.gistda && !src.gistda_stale,"GISTDA น้ำท่วม")}
         </div>
-        <div class="note" style="margin-top:6px">ประมวลผลเมื่อ ${thDT(s.generated_at)} · ระดับคำนวณอัตโนมัติจากเกณฑ์ฝนกรมอุตุฯ (หนัก ≥35.1 / หนักมาก ≥90.1 มม.) ข่าวเตือนภัย และพื้นที่น้ำท่วมจากดาวเทียม — ใช้ประกอบการตัดสินใจ ไม่ใช่ประกาศทางราชการ</div>
+        <div class="note" style="margin-top:6px">ประมวลผลเมื่อ ${thDT(s.generated_at)} · ระดับคำนวณอัตโนมัติจากเกณฑ์ฝนกรมอุตุฯ (หนัก ≥35.1 / หนักมาก ≥90.1 มม.) ฝนสะสม 7 วัน ระดับน้ำในคลอง/แม่น้ำ พยากรณ์ฝน ข่าวเตือนภัย และพื้นที่น้ำท่วมจากดาวเทียม — ใช้ประกอบการตัดสินใจ ไม่ใช่ประกาศทางราชการ</div>
       </div>`;
   }catch(e){
     box.innerHTML = '<div class="note err">'+esc(e.message)+'</div>';
