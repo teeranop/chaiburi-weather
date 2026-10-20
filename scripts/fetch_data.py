@@ -4,7 +4,8 @@ fetch_data.py — รวบรวมข้อมูลน้ำท่วม/ฝ�
 
 แหล่งข้อมูล
   - GISTDA Disaster API   : พื้นที่น้ำท่วมจากดาวเทียม 1/3/7/30 วัน + น้ำท่วมซ้ำซาก (ต้องมี API key)
-  - กรมอุตุนิยมวิทยา (TMD) : ผลตรวจราย 3 ชม., ฝน 24 ชม. (07:00), ข่าวเตือนภัย, พยากรณ์ NWP 7 วัน
+  - กรมอุตุนิยมวิทยา (TMD) : ผลตรวจราย 3 ชม., ฝน 24 ชม. (07:00), ข่าวเตือนภัย,
+                             พยากรณ์ NWP รายชั่วโมง 24 ชม. + รายวัน 7 วัน, สภาพอากาศปัจจุบัน (current)
   - ThaiWater (สสน.)       : ฝน 24 ชม. จากสถานีโทรมาตร (ใช้คำนวณระดับสถานการณ์)
 
 ผลลัพธ์ (โฟลเดอร์ --out, ค่าเริ่มต้น data/)
@@ -62,6 +63,8 @@ COORD_DP = 5
 
 TMD_BASE = "https://data.tmd.go.th/api"
 TMD_NWP_DAILY = "https://data.tmd.go.th/nwpapi/v1/forecast/location/daily/at"
+TMD_NWP_HOURLY = "https://data.tmd.go.th/nwpapi/v1/forecast/location/hourly/at"
+NWP_HOURS = 24
 THAIWATER_RAIN = "https://api-v3.thaiwater.net/api/v1/thaiwater30/public/rain_24h"
 
 TZ_TH = timezone(timedelta(hours=7))
@@ -421,10 +424,14 @@ def parse_tmd_obs(payload) -> list:
             "dist_km": round(haversine(LAT, LON, lat, lon), 1),
             "time": parse_tmd_dt(obs.get("DateTime") or obs.get("DateTimeObserved") or ""),
             "rain": rain, "rain_key": rk,
+            "rain_24h": num(obs.get("Rainfall24Hr")),
             "temp": num(obs.get("AirTemperature") or obs.get("MaxTemperature")),
+            "dewpoint": num(obs.get("DewPoint")),
             "rh": num(obs.get("RelativeHumidity")),
             "wind_kmh": num(obs.get("WindSpeed")),
+            "wind_dir": num(obs.get("WindDirection")),
             "pressure": num(obs.get("MeanSeaLevelPressure")),
+            "visibility_km": num(obs.get("LandVisibility")),
         })
     rows = [r for r in rows if r["dist_km"] <= TMD_RADIUS_KM]
     rows.sort(key=lambda r: r["dist_km"])
@@ -478,7 +485,8 @@ def parse_tmd_warnings(payload) -> list:
     return out[:10]
 
 
-def parse_nwp_daily(payload) -> list:
+def nwp_forecasts(payload) -> list:
+    """รายการ forecasts ของพิกัดแรก (daily ใช้ weather_forecast.locations, hourly ใช้ WeatherForcasts)"""
     locs = None
     if isinstance(payload, dict):
         locs = payload.get("WeatherForcasts") or payload.get("WeatherForecasts")
@@ -486,8 +494,54 @@ def parse_nwp_daily(payload) -> list:
             locs = payload["weather_forecast"].get("locations")
     if not locs:
         return []
+    return locs[0].get("forecasts") or []
+
+
+def parse_nwp_hourly(payload) -> list:
+    hours = []
+    for fc in nwp_forecasts(payload):
+        d = fc.get("data") or {}
+        cond = int(num(d.get("cond")) or 0)
+        ws = num(d.get("ws10m"))
+        hours.append({
+            "time": str(fc.get("time", "")),
+            "tc": num(d.get("tc")), "rh": num(d.get("rh")),
+            "rain": num(d.get("rain")), "slp": num(d.get("slp")),
+            "wind_kmh": round(ws * 3.6, 1) if ws is not None else None,   # m/s -> กม./ชม.
+            "wind_dir": num(d.get("wd10m")),
+            "cond": cond, "cond_th": TMD_COND.get(cond, ""),
+        })
+    return hours
+
+
+def heat_index(t, rh):
+    """อุณหภูมิที่รู้สึก (Heat Index ของ NOAA) — ใช้เมื่อร้อนกว่า 27°C เท่านั้น"""
+    if t is None or rh is None:
+        return None
+    if t < 27:
+        return t
+    f = t * 9 / 5 + 32
+    hi = (-42.379 + 2.04901523 * f + 10.14333127 * rh - 0.22475541 * f * rh
+          - 6.83783e-3 * f * f - 5.481717e-2 * rh * rh + 1.22874e-3 * f * f * rh
+          + 8.5282e-4 * f * rh * rh - 1.99e-6 * f * f * rh * rh)
+    return round((hi - 32) * 5 / 9, 1)
+
+
+def build_current(obs3h: list, hourly: list) -> dict | None:
+    """สภาพอากาศปัจจุบัน: ค่าวัดจริงจากสถานีกรมอุตุฯ ที่ใกล้ที่สุด + สภาพท้องฟ้าจาก NWP รายชั่วโมงชั่วโมงนี้"""
+    st = next((r for r in obs3h or [] if r.get("temp") is not None), None)
+    nwp = hourly[0] if hourly else None
+    if not st and not nwp:
+        return None
+    cur = {"station": st, "nwp": nwp}
+    if st:
+        cur["feels_like"] = heat_index(st["temp"], st.get("rh"))
+    return cur
+
+
+def parse_nwp_daily(payload) -> list:
     days = []
-    for fc in (locs[0].get("forecasts") or []):
+    for fc in nwp_forecasts(payload):
         d = fc.get("data") or {}
         cond = int(num(d.get("cond")) or 0)
         days.append({
@@ -528,8 +582,15 @@ def fetch_tmd(out_dir: str, prev_url: str | None) -> dict:
             {"lat": LAT, "lon": LON, "fields": "tc_max,tc_min,rh,rain,ws10m,cond",
              "date": now_th().date().isoformat(), "duration": 7},
             {"Authorization": f"Bearer {token}"})))
+        now = now_th()
+        attempt("hourly", lambda: parse_nwp_hourly(http_json(
+            TMD_NWP_HOURLY,
+            {"lat": LAT, "lon": LON, "fields": "tc,rh,rain,slp,ws10m,wd10m,cond",
+             "date": now.date().isoformat(), "hour": now.hour, "duration": NWP_HOURS},
+            {"Authorization": f"Bearer {token}"})))
     else:
-        res["errors"]["forecast"] = "ยังไม่ได้ตั้งค่า TMD_NWP_TOKEN"
+        res["errors"]["forecast"] = res["errors"]["hourly"] = "ยังไม่ได้ตั้งค่า TMD_NWP_TOKEN"
+    res["current"] = build_current(res.get("obs3h"), res.get("hourly"))
     return res
 
 

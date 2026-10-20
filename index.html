@@ -203,7 +203,7 @@
   </div>
 
   <footer>
-    ข้อมูลจาก Open-Meteo · ThaiWater (สสน.) · กรมอุตุนิยมวิทยา · GISTDA Disaster Platform ·
+    ข้อมูลจาก กรมอุตุนิยมวิทยา · ThaiWater (สสน.) · GISTDA Disaster Platform ·
     เขตเวลา Asia/Bangkok · หน้าเว็บรีเฟรชทุก 15 นาที (ข้อมูลกรมอุตุฯ/GISTDA ปรับปรุงทุกชั่วโมง)
   </footer>
 </div>
@@ -212,124 +212,165 @@
 const LAT = 8.46278, LON = 99.07667;
 const TZ = "Asia/Bangkok";
 
-// WMO weather code -> {emoji, ไทย}
-const WMO = {
-  0:["☀️","ท้องฟ้าแจ่มใส"],1:["🌤️","มีเมฆบางส่วน"],2:["⛅","มีเมฆเป็นบางส่วน"],3:["☁️","เมฆมาก/ครึ้ม"],
-  45:["🌫️","หมอก"],48:["🌫️","หมอกน้ำแข็ง"],
-  51:["🌦️","ฝนปรอยเล็กน้อย"],53:["🌦️","ฝนปรอย"],55:["🌧️","ฝนปรอยหนัก"],
-  56:["🌧️","ฝนปรอยเย็นจัด"],57:["🌧️","ฝนปรอยเย็นจัดหนัก"],
-  61:["🌦️","ฝนเล็กน้อย"],63:["🌧️","ฝนปานกลาง"],65:["🌧️","ฝนตกหนัก"],
-  66:["🌧️","ฝนเย็นจัด"],67:["🌧️","ฝนเย็นจัดหนัก"],
-  71:["🌨️","หิมะเล็กน้อย"],73:["🌨️","หิมะ"],75:["❄️","หิมะหนัก"],77:["❄️","เกล็ดหิมะ"],
-  80:["🌦️","ฝนซู่เล็กน้อย"],81:["🌧️","ฝนซู่ปานกลาง"],82:["⛈️","ฝนซู่หนักมาก"],
-  85:["🌨️","ฝนหิมะซู่"],86:["🌨️","ฝนหิมะซู่หนัก"],
-  95:["⛈️","พายุฝนฟ้าคะนอง"],96:["⛈️","ฝนฟ้าคะนอง+ลูกเห็บ"],99:["⛈️","ฝนฟ้าคะนองรุนแรง+ลูกเห็บ"]
-};
-const wmo = c => WMO[c] || ["❓","ไม่ทราบ"];
+// รหัสสภาพอากาศ (cond) ของ NWP กรมอุตุฯ -> emoji
+const COND_ICO = {1:"☀️",2:"🌤️",3:"⛅",4:"☁️",5:"🌦️",6:"🌧️",7:"🌧️",8:"⛈️",9:"🥶",10:"❄️",11:"🌬️",12:"🥵"};
+const condIco = c => COND_ICO[c] || "🌡️";
 const dayNames = ["อา","จ","อ","พ","พฤ","ศ","ส"];
 const monthNames = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
+const WIND_DIR = ["เหนือ","ตะวันออกเฉียงเหนือ","ตะวันออก","ตะวันออกเฉียงใต้","ใต้","ตะวันตกเฉียงใต้","ตะวันตก","ตะวันตกเฉียงเหนือ"];
 
 function fmtDate(d){ return d.getDate()+" "+monthNames[d.getMonth()]; }
+const ymd = d => d.toLocaleDateString("sv-SE",{timeZone:TZ});   // YYYY-MM-DD ตามเวลาไทย
+const hhmm = s => { const d = new Date(s); return isNaN(d) ? "" : d.toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit",timeZone:TZ}); };
 
-async function load(){
-  const content = document.getElementById("content");
-  const url = "https://api.open-meteo.com/v1/forecast"
-    + "?latitude=" + LAT + "&longitude=" + LON
-    + "&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m,surface_pressure"
-    + "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max"
-    + "&past_days=30&forecast_days=7"
-    + "&timezone=" + encodeURIComponent(TZ);
-  try{
-    const res = await fetch(url);
-    if(!res.ok) throw new Error("HTTP " + res.status);
-    const d = await res.json();
-    render(d);
-    document.getElementById("updated").textContent =
-      "อัปเดตล่าสุด: " + new Date().toLocaleString("th-TH");
-  }catch(e){
-    content.innerHTML = '<div class="loading err">โหลดข้อมูลไม่สำเร็จ: '
-      + e.message + '<br>ตรวจสอบการเชื่อมต่ออินเทอร์เน็ตแล้วกดรีเฟรช</div>';
-  }
+// สถานีวัดน้ำฝน ThaiWater ที่ใช้ทำกราฟฝนสะสมย้อนหลัง
+const RAIN_STN = {id:827, name:"อบต.ชัยบุรี"};
+const TW_PUBLIC = "https://api-v3.thaiwater.net/api/v1/thaiwater30/public";
+
+async function twJson(path){
+  const res = await fetch(TW_PUBLIC + path);
+  if(!res.ok) throw new Error("HTTP " + res.status);
+  const j = await res.json();
+  if(j.result !== "OK") throw new Error((j.data && j.data.RespMessage) || "ThaiWater ตอบกลับผิดพลาด");
+  return j.data || [];
 }
 
-function render(d){
-  const c = d.current, dl = d.daily;
-  const [cIco,cDesc] = wmo(c.weather_code);
-
-  // index of today within daily arrays (past_days=30 => today at index 30)
-  const todayIdx = dl.time.findIndex(t => t === d.current.time.slice(0,10));
-  const ti = todayIdx >= 0 ? todayIdx : 30;
-
-  // accumulated rainfall last 30 days (indices 0..ti)
-  let rain30 = 0, rain7past = 0, rainToday = dl.precipitation_sum[ti] || 0;
-  for(let i=0;i<=ti;i++) rain30 += dl.precipitation_sum[i]||0;
-  for(let i=Math.max(0,ti-6);i<=ti;i++) rain7past += dl.precipitation_sum[i]||0;
-
-  // history bars (past 30 incl today)
-  const histStart = Math.max(0, ti-29);
-  const histVals = dl.precipitation_sum.slice(histStart, ti+1);
-  const histDates = dl.time.slice(histStart, ti+1);
-  const maxRain = Math.max(1, ...histVals);
-
-  let bars = "";
-  for(let i=0;i<histVals.length;i++){
-    const v = histVals[i]||0;
-    const h = (v/maxRain*100);
-    const dt = new Date(histDates[i]+"T00:00:00");
-    bars += '<div class="bar" title="'+fmtDate(dt)+': '+v.toFixed(1)+' มม.">'
-          + '<div class="fill" style="height:'+h+'%"></div>'
-          + '<div class="blabel">'+dt.getDate()+'/'+(dt.getMonth()+1)+'</div></div>';
+// ฝนรายวันย้อนหลัง 30 วัน (รวมวันนี้) ของสถานี RAIN_STN — null = ไม่มีข้อมูลวันนั้น
+async function loadRainHistory(){
+  const now = new Date(), today = ymd(now);
+  const [y, m] = today.split("-").map(Number);
+  const py = m === 1 ? y-1 : y, pm = m === 1 ? 12 : m-1;
+  const [prev, cur, hourly] = await Promise.all([
+    twJson("/rain_monthly_graph?station_id="+RAIN_STN.id+"&year="+py+"&month="+pm),
+    twJson("/rain_monthly_graph?station_id="+RAIN_STN.id+"&year="+y+"&month="+m),
+    twJson("/rain_24h_graph?station_id="+RAIN_STN.id).catch(() => [])
+  ]);
+  const daily = {};
+  for(const x of [...prev, ...cur]) daily[x.rainfall_datetime.slice(0,10)] = x.rainfall_value;
+  // วันนี้ยังไม่มีค่ารายวัน: รวมฝนรายชั่วโมงตั้งแต่ 00:00
+  const hrs = hourly.filter(x => x.rainfall_datetime.startsWith(today) && x.rainfall_value != null);
+  if(hrs.length) daily[today] = hrs.reduce((s,x) => s + x.rainfall_value, 0);
+  const days = [];
+  for(let i=29;i>=0;i--){
+    const k = ymd(new Date(now.getTime() - i*864e5));
+    days.push({date:k, rain: daily[k] ?? null});
   }
+  return days;
+}
 
-  // 7-day forecast (today .. +6)
-  let fc = "";
-  for(let i=ti;i<Math.min(ti+7, dl.time.length);i++){
-    const dt = new Date(dl.time[i]+"T00:00:00");
-    const [ico] = wmo(dl.weather_code[i]);
-    const label = (i===ti) ? "วันนี้" : dayNames[dt.getDay()]+" "+dt.getDate()+"/"+(dt.getMonth()+1);
-    fc += '<div class="day">'
-        + '<div class="dname">'+label+'</div>'
-        + '<div class="dico">'+ico+'</div>'
-        + '<div class="dtemp">'+Math.round(dl.temperature_2m_max[i])+'° / '+Math.round(dl.temperature_2m_min[i])+'°</div>'
-        + '<div class="drain">💧 '+(dl.precipitation_sum[i]||0).toFixed(1)+' มม.</div>'
-        + '<div class="drain">'+(dl.precipitation_probability_max[i]??0)+'%</div>'
-        + '</div>';
-  }
+async function load(){
+  const [t, rain] = await Promise.allSettled([loadLocal("tmd.json"), loadRainHistory()]);
+  const tmd = t.status === "fulfilled" ? t.value : null;
+  const tmdErr = t.status === "rejected" ? t.reason.message : "";
+  document.getElementById("content").innerHTML =
+      currentHtml(tmd, tmdErr)
+    + forecastHtml(tmd, tmdErr)
+    + rainHtml(rain.status === "fulfilled" ? rain.value : null, rain.status === "rejected" ? rain.reason.message : "")
+    + LINKS_HTML;
+  document.getElementById("updated").textContent =
+    "อัปเดตล่าสุด: " + new Date().toLocaleString("th-TH");
+}
 
-  document.getElementById("content").innerHTML = `
+// ---------- สภาพอากาศปัจจุบัน: สถานีกรมอุตุฯ ใกล้ที่สุด (พระแสง) + NWP รายชั่วโมง
+function currentHtml(t, err){
+  const c = t && t.current;
+  if(!c) return '<div class="card" style="margin-bottom:16px"><h2>สภาพอากาศปัจจุบัน</h2><div class="note err">'
+    + esc(err || (t && t.errors && t.errors.obs3h) || "ไม่มีข้อมูลสภาพอากาศปัจจุบัน") + '</div></div>';
+  const s = c.station || {}, n = c.nwp || {};
+  const temp = s.temp ?? n.tc, rh = s.rh ?? n.rh;
+  const wind = s.wind_kmh ?? n.wind_kmh, wdir = s.wind_kmh != null ? s.wind_dir : n.wind_dir;
+  const windTxt = wind == null ? "-" : wind === 0 ? "ลมสงบ"
+    : nf(wind,1) + ' กม./ชม.' + (wdir != null ? '<small style="display:block;font-size:.8rem;font-weight:400">จากทิศ'+WIND_DIR[Math.round(wdir/45)%8]+'</small>' : '');
+  const feels = c.feels_like != null && temp != null && Math.round(c.feels_like) !== Math.round(temp)
+    ? ' · รู้สึกเหมือน ' + nf(c.feels_like,0) + '°C' : '';
+
+  // 12 ชั่วโมงข้างหน้า (NWP)
+  const next = (t.hourly || []).slice(0, 12);
+  const strip = next.length ? '<div class="forecast" style="grid-template-columns:repeat(12,minmax(64px,1fr));margin-top:14px">'
+    + next.map(h => '<div class="day"><div class="dname">'+hhmm(h.time)+'</div><div class="dico">'+condIco(h.cond)+'</div>'
+      + '<div class="dtemp">'+nf(h.tc,0)+'°</div><div class="drain">💧 '+nf(h.rain,1)+'</div></div>').join("")
+    + '</div>' : '';
+
+  const srcNote = (s.name ? 'ค่าวัดจริงจากสถานีกรมอุตุฯ <b>'+esc(s.name)+'</b> (ห่าง '+nf(s.dist_km,0)+' กม.) ตรวจเมื่อ '+thDT(s.time) : 'ไม่มีค่าวัดจากสถานี — ใช้ค่าพยากรณ์ NWP แทน')
+    + (n.time ? ' · สภาพท้องฟ้าและพยากรณ์รายชั่วโมงจาก NWP กรมอุตุฯ ที่พิกัดอำเภอ' : '')
+    + ' · ประมวลผล '+thDT(t.generated_at);
+
+  return `
     <div class="grid cards" style="margin-bottom:16px">
       <div class="card" style="grid-column:span 2;min-width:280px">
         <h2>สภาพอากาศปัจจุบัน</h2>
         <div class="now">
-          <div class="icon">${cIco}</div>
+          <div class="icon">${condIco(n.cond)}</div>
           <div>
-            <div class="temp">${Math.round(c.temperature_2m)}°C</div>
-            <div class="desc">${cDesc} · รู้สึกเหมือน ${Math.round(c.apparent_temperature)}°C</div>
+            <div class="temp">${nf(temp,0)}°C</div>
+            <div class="desc">${esc(n.cond_th || "-")}${feels}</div>
           </div>
         </div>
       </div>
-      <div class="card"><div class="stat">ฝนตอนนี้<b class="rainbig">${c.precipitation} มม.</b></div></div>
-      <div class="card"><div class="stat">ความชื้น<b>${c.relative_humidity_2m}%</b></div></div>
-      <div class="card"><div class="stat">ลม<b>${c.wind_speed_10m} กม./ชม.</b></div></div>
-      <div class="card"><div class="stat">ความกดอากาศ<b>${Math.round(c.surface_pressure)} hPa</b></div></div>
+      <div class="card"><div class="stat">ฝน 3 ชม. ล่าสุด<b class="rainbig">${nf(s.rain ?? n.rain,1)} มม.</b></div></div>
+      <div class="card"><div class="stat">ฝน 24 ชม. (07:00)<b class="rainbig">${nf(s.rain_24h,1)} มม.</b></div></div>
+      <div class="card"><div class="stat">ความชื้น<b>${nf(rh,0)}%</b></div></div>
+      <div class="card"><div class="stat">ลม<b>${windTxt}</b></div></div>
+      <div class="card"><div class="stat">ความกดอากาศ<b>${nf(s.pressure ?? n.slp,0)} hPa</b></div></div>
     </div>
+    ${strip ? '<div class="card" style="margin-bottom:16px"><h2>12 ชั่วโมงข้างหน้า (กรมอุตุฯ)</h2>'+strip+'</div>' : ''}
+    <div class="note" style="margin:-8px 0 16px">${srcNote}</div>`;
+}
 
+// ---------- พยากรณ์ 7 วัน: NWP รายวันของกรมอุตุฯ
+function forecastHtml(t, err){
+  const fc = (t && t.forecast) || [];
+  if(!fc.length) return '<div class="card" style="margin-bottom:16px"><h2>พยากรณ์ล่วงหน้า 7 วัน</h2><div class="note err">'
+    + esc(err || (t && t.errors && t.errors.forecast) || "ไม่มีข้อมูลพยากรณ์") + '</div></div>';
+  const today = ymd(new Date());
+  const days = fc.map(d => {
+    const dt = new Date(d.date+"T00:00:00");
+    const label = d.date === today ? "วันนี้" : dayNames[dt.getDay()]+" "+dt.getDate()+"/"+(dt.getMonth()+1);
+    return '<div class="day" title="'+esc(d.cond_th||"")+'">'
+      + '<div class="dname">'+label+'</div>'
+      + '<div class="dico">'+condIco(d.cond)+'</div>'
+      + '<div class="dtemp">'+nf(d.tmax,0)+'° / '+nf(d.tmin,0)+'°</div>'
+      + '<div class="drain">💧 '+nf(d.rain,1)+' มม.</div>'
+      + '<div class="drain">'+esc(d.cond_th||"")+'</div>'
+      + '</div>';
+  }).join("");
+  return `
     <div class="card" style="margin-bottom:16px">
-      <h2>พยากรณ์ล่วงหน้า 7 วัน</h2>
-      <div class="forecast">${fc}</div>
-    </div>
+      <h2>พยากรณ์ล่วงหน้า 7 วัน <span class="badge">กรมอุตุฯ NWP</span></h2>
+      <div class="forecast">${days}</div>
+      <div class="note">พยากรณ์เชิงตัวเลข (NWP) ของกรมอุตุนิยมวิทยาที่พิกัดที่ว่าการอำเภอ · ฝน = ปริมาณฝนรวมทั้งวัน (มม.)</div>
+    </div>`;
+}
 
-    <div class="card" id="sec-rain" style="margin-bottom:16px">
-      <h2>ปริมาณน้ำฝนสะสมย้อนหลัง</h2>
+// ---------- ฝนสะสมย้อนหลัง 30 วัน: มาตรวัดฝน ThaiWater สถานี อบต.ชัยบุรี
+function rainHtml(days, err){
+  const head = '<div class="card" id="sec-rain" style="margin-bottom:16px"><h2>ปริมาณน้ำฝนสะสมย้อนหลัง <span class="badge">ThaiWater · '+RAIN_STN.name+'</span></h2>';
+  if(!days) return head + '<div class="note err">โหลดข้อมูลฝนจาก ThaiWater ไม่สำเร็จ: '+esc(err)+'</div></div>';
+  const sum = a => a.reduce((s,d) => s + (d.rain || 0), 0);
+  const rainToday = days[days.length-1].rain;
+  const rain7 = sum(days.slice(-7)), rain30 = sum(days);
+  const missing = days.filter(d => d.rain == null).length;
+  const maxRain = Math.max(1, ...days.map(d => d.rain || 0));
+  const bars = days.map(d => {
+    const dt = new Date(d.date+"T00:00:00");
+    const tip = fmtDate(dt) + ': ' + (d.rain == null ? 'ไม่มีข้อมูล' : d.rain.toFixed(1)+' มม.');
+    return '<div class="bar" title="'+tip+'"'+(d.rain == null ? ' style="opacity:.35"' : '')+'>'
+      + '<div class="fill" style="height:'+((d.rain||0)/maxRain*100)+'%"></div>'
+      + '<div class="blabel">'+dt.getDate()+'/'+(dt.getMonth()+1)+'</div></div>';
+  }).join("");
+  return head + `
       <div class="sumrow">
-        <div class="stat">วันนี้<b class="rainbig">${rainToday.toFixed(1)} มม.</b></div>
-        <div class="stat">7 วันที่ผ่านมา<b class="rainbig">${rain7past.toFixed(1)} มม.</b></div>
+        <div class="stat">วันนี้ (ตั้งแต่ 00:00)<b class="rainbig">${rainToday == null ? '-' : rainToday.toFixed(1)+' มม.'}</b></div>
+        <div class="stat">7 วันที่ผ่านมา<b class="rainbig">${rain7.toFixed(1)} มม.</b></div>
         <div class="stat">30 วันที่ผ่านมา<b class="rainbig">${rain30.toFixed(1)} มม.</b></div>
       </div>
       <div class="bars">${bars}</div>
-      <div class="note">กราฟแท่ง: ปริมาณฝนรายวัน (มม.) ย้อนหลัง 30 วัน — ชี้เมาส์ที่แท่งเพื่อดูค่า</div>
-    </div>
+      <div class="note">กราฟแท่ง: ปริมาณฝนรายวัน (มม.) จากมาตรวัดฝนจริงสถานี${RAIN_STN.name} ผ่าน ThaiWater (สสน.) — ชี้เมาส์ที่แท่งเพื่อดูค่า
+        ${missing ? '· แท่งจาง = ไม่มีข้อมูล ('+missing+' วัน ไม่นับรวมในยอดสะสม)' : ''}</div>
+    </div>`;
+}
 
+const LINKS_HTML = `
     <div class="card links">
       <h2>📊 แหล่งข้อมูลทางการ</h2>
       <a href="https://www.thaiwater.net/water/rain" target="_blank">ThaiWater (คลังข้อมูลน้ำแห่งชาติ)</a>
@@ -337,12 +378,10 @@ function render(d){
       <a href="https://hydro-8.rid.go.th/" target="_blank">ศูนย์อุทกวิทยาชลประทานภาคใต้</a>
       <a href="https://disaster.gistda.or.th/" target="_blank">GISTDA Disaster Platform</a>
       <div class="note">
-        การ์ดด้านบน (ปัจจุบัน/พยากรณ์/ฝนสะสม 30 วัน) มาจากโมเดล Open-Meteo ความละเอียด ~1–11 กม.
-        ส่วน "จุดวัดน้ำฝนจริง" ด้านบนเป็นค่าจากมาตรวัดฝน (rain gauge) จริงผ่าน ThaiWater
+        สภาพอากาศปัจจุบันและพยากรณ์มาจากกรมอุตุนิยมวิทยา (ปรับปรุงทุกชั่วโมงผ่าน GitHub Actions)
+        ส่วนฝนสะสมและ "จุดวัดน้ำฝนจริง" เป็นค่าจากมาตรวัดฝน (rain gauge) จริงผ่าน ThaiWater
       </div>
-    </div>
-  `;
-}
+    </div>`;
 
 // ===== ThaiWater: จุดวัดน้ำฝนจริง =====
 async function loadStations(){
@@ -642,22 +681,7 @@ async function loadTmd(){
     }
     if(errs.warnings) wHtml += '<div class="note err">ข่าวเตือนภัย: '+esc(errs.warnings)+'</div>';
 
-    // พยากรณ์ NWP 7 วัน
-    let fHtml;
-    if((t.forecast||[]).length){
-      let rows = "";
-      for(const d of t.forecast){
-        rows += '<tr><td>'+thD(d.date)+'</td><td>'+esc(d.cond_th||"-")+'</td>'
-          + '<td class="'+rainClass(d.rain)+'">'+nf(d.rain,1)+'</td>'
-          + '<td>'+nf(d.tmax,0)+'° / '+nf(d.tmin,0)+'°</td><td>'+nf(d.rh,0)+'%</td></tr>';
-      }
-      fHtml = '<div class="stwrap"><table class="sttable"><thead><tr><th>วันที่</th><th>สภาพอากาศ</th><th>ฝน (มม.)</th><th>สูงสุด/ต่ำสุด</th><th>ความชื้น</th></tr></thead><tbody>'+rows+'</tbody></table></div>'
-        + '<div class="note">พยากรณ์เชิงตัวเลข (NWP) ของกรมอุตุฯ ที่พิกัดที่ว่าการอำเภอ — เทียบกับการ์ดพยากรณ์ Open-Meteo ด้านบน</div>';
-    }else{
-      fHtml = '<div class="note">'+esc(errs.forecast || "ไม่มีข้อมูลพยากรณ์")+'</div>';
-    }
-
-    // สถานีตรวจอากาศ
+    // สถานีตรวจอากาศ (พยากรณ์ 7 วันย้ายไปแสดงในการ์ดด้านบนแล้ว)
     const today = {}; for(const r of (t.today||[])) today[r.wmo] = r;
     let sRows = "";
     for(const r of (t.obs3h||[])){
@@ -673,11 +697,10 @@ async function loadTmd(){
       : '<div class="note">'+esc(errs.obs3h || "ไม่มีข้อมูลสถานี")+'</div>';
 
     box.innerHTML = `
-      <h2>🏛️ กรมอุตุนิยมวิทยา — เตือนภัย / พยากรณ์ / สถานีตรวจอากาศ
+      <h2>🏛️ กรมอุตุนิยมวิทยา — เตือนภัย / สถานีตรวจอากาศ
         ${t.stale?'<span class="badge" style="background:#fde68a;color:#92400e">ข้อมูลรอบก่อน</span>':''}
       </h2>
       <div class="subh">📢 ข่าวเตือนภัยสภาพอากาศ</div>${wHtml}
-      <div class="subh">📅 พยากรณ์ 7 วัน (กรมอุตุฯ)</div>${fHtml}
       <div class="subh">🌡️ สถานีตรวจอากาศใกล้เคียง</div>${sHtml}
       <div class="note">ที่มา: data.tmd.go.th · ปรับปรุง ${thDT(t.generated_at)}${t.demo_key?' · ใช้ demo key (ควรลงทะเบียน uid/ukey ของหน่วยงาน)':''}</div>`;
   }catch(e){

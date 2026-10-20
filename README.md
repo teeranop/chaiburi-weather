@@ -9,9 +9,11 @@
 | ส่วนในหน้าเว็บ | แหล่งข้อมูล | ดึงจาก |
 |---|---|---|
 | สรุประดับสถานการณ์ | คำนวณจากทุกแหล่งด้านล่าง | GitHub Actions → `data/summary.json` |
-| สภาพอากาศ / พยากรณ์ / ฝนสะสม 30 วัน | Open-Meteo | เบราว์เซอร์ (สด) |
+| สภาพอากาศปัจจุบัน | กรมอุตุฯ: ค่าวัดสถานีใกล้ที่สุด (พระแสง สอท.) + สภาพท้องฟ้าจาก NWP รายชั่วโมง | GitHub Actions → `data/tmd.json` (`current`, `hourly`) |
+| พยากรณ์ 12 ชม. / 7 วัน | กรมอุตุฯ NWP ที่พิกัดที่ว่าการอำเภอ | GitHub Actions → `data/tmd.json` (`hourly`, `forecast`) |
+| ฝนสะสมย้อนหลัง 30 วัน | ThaiWater สถานี อบต.ชัยบุรี (`rain_monthly_graph`, `rain_24h_graph`) | เบราว์เซอร์ (สด) |
 | จุดวัดน้ำฝนจริง, เขื่อน/อ่างเก็บน้ำ | ThaiWater (สสน.) | เบราว์เซอร์ (สด) |
-| ข่าวเตือนภัย, สถานีตรวจอากาศ, พยากรณ์ NWP 7 วัน | กรมอุตุนิยมวิทยา (data.tmd.go.th) | GitHub Actions → `data/tmd.json` |
+| ข่าวเตือนภัย, สถานีตรวจอากาศใกล้เคียง | กรมอุตุนิยมวิทยา (data.tmd.go.th) | GitHub Actions → `data/tmd.json` |
 | พื้นที่น้ำท่วมจากดาวเทียม 1/3/7/30 วัน, น้ำท่วมซ้ำซาก | GISTDA Disaster Platform | GitHub Actions → `data/flood*.json` |
 
 ข้อมูลที่ต้องใช้ API key (GISTDA, กรมอุตุฯ) ดึงฝั่ง GitHub Actions ด้วย secrets
@@ -28,7 +30,7 @@
    |---|---|---|
    | `GISTDA_API_KEY` | สำหรับส่วนน้ำท่วม | https://api-gateway.gistda.or.th → API Keys → สร้าง API Key |
    | `TMD_UID`, `TMD_UKEY` | แนะนำ (ไม่ตั้ง = ใช้ demo/demokey) | ลงทะเบียนที่ https://data.tmd.go.th/api/index1.php |
-   | `TMD_NWP_TOKEN` | สำหรับพยากรณ์ 7 วันของกรมอุตุฯ | ลงทะเบียน NWP API ที่ data.tmd.go.th |
+   | `TMD_NWP_TOKEN` | สำหรับสภาพท้องฟ้าปัจจุบัน + พยากรณ์รายชั่วโมง/7 วัน | ลงทะเบียน NWP API ที่ data.tmd.go.th/nwpapi → Create New Token |
    | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | ถ้าต้องการแจ้งเตือน | @BotFather |
 
 3. **สั่งรันครั้งแรก** — Actions → "อัปเดตข้อมูลและเผยแพร่หน้าเว็บ" → Run workflow
