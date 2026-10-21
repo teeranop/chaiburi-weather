@@ -905,29 +905,36 @@ def html_to_text(msg: str) -> str:
     return html.unescape(re.sub(r"<[^>]+>", "", msg))
 
 
-def moph_send(msg: str):
-    """ส่งข้อความเข้า LINE ผ่าน MOPH Notify (LINE OA หมอพร้อม) — ข้ามถ้าไม่ได้ตั้ง key"""
-    # ค่า Client_ID / Secret จาก CMS MOPH Notify → ส่งเป็น header client-key / secret-key
-    ck, sk = os.environ.get("MOPH_CLIENT_ID"), os.environ.get("MOPH_SECRET")
-    if not ck or not sk:
-        return False
+def moph_post(message: dict, ck: str, sk: str) -> bool:
     url = os.environ.get("MOPH_NOTIFY_URL") or MOPH_NOTIFY_URL
-    body = json.dumps({"messages": [{"type": "text", "text": html_to_text(msg)[:4900]}]}).encode()
+    body = json.dumps({"messages": [message]}, ensure_ascii=False).encode()
     try:
         req = urllib.request.Request(url, data=body, method="POST", headers={
             "User-Agent": UA, "Content-Type": "application/json", "client-key": ck, "secret-key": sk})
         urllib.request.urlopen(req, timeout=30).read()
         return True
     except urllib.error.HTTPError as e:
-        log(f"MOPH Notify ล้มเหลว: HTTP {e.code}")
+        log(f"MOPH Notify ({message['type']}) ล้มเหลว: HTTP {e.code}")
     except Exception as e:                              # noqa: BLE001
-        log(f"MOPH Notify ล้มเหลว: {type(e).__name__}")
+        log(f"MOPH Notify ({message['type']}) ล้มเหลว: {type(e).__name__}")
     return False
 
 
-def notify(msg: str):
-    """ส่งทุกช่องทางที่ตั้งค่าไว้ (Telegram, LINE หมอพร้อม)"""
-    sent = [name for name, fn in (("Telegram", tg_send), ("LINE หมอพร้อม", moph_send)) if fn(msg)]
+def moph_send(msg: str, flex: dict | None = None):
+    """ส่งเข้า LINE ผ่าน MOPH Notify (LINE OA หมอพร้อม) — ข้ามถ้าไม่ได้ตั้ง key
+    ส่งเป็นการ์ด Flex ก่อน ถ้าไม่ผ่านจะส่งเป็นข้อความธรรมดาแทน"""
+    # ค่า Client_ID / Secret จาก CMS MOPH Notify → ส่งเป็น header client-key / secret-key
+    ck, sk = os.environ.get("MOPH_CLIENT_ID"), os.environ.get("MOPH_SECRET")
+    if not ck or not sk:
+        return False
+    if flex and moph_post(flex, ck, sk):
+        return True
+    return moph_post({"type": "text", "text": html_to_text(msg)[:4900]}, ck, sk)
+
+
+def notify(msg: str, flex: dict | None = None):
+    """ส่งทุกช่องทางที่ตั้งค่าไว้ (Telegram = ข้อความ HTML, LINE หมอพร้อม = การ์ด Flex)"""
+    sent = [name for name, ok in (("Telegram", tg_send(msg)), ("LINE หมอพร้อม", moph_send(msg, flex))) if ok]
     log("ส่งแจ้งเตือน: " + (", ".join(sent) or "ไม่มีช่องทางที่ตั้งค่าไว้"))
 
 
@@ -975,27 +982,145 @@ def build_message(summary: dict, flood: dict, tmd: dict, header: str) -> str:
     # ไม่ใส่สถิติน้ำท่วมจากดาวเทียม GISTDA ในข้อความ: ภาพดาวเทียมไม่เรียลไทม์ อาจทำให้เข้าใจผิด
 
     # พยากรณ์ 24 ชม. ข้างหน้า (รายชั่วโมง) + 3 วันถัดไป
-    nw = summary.get("nwp_next24")
+    nw = next24_text(summary.get("nwp_next24"))
     if nw:
-        today = now_th().date().isoformat()
-
-        def hhmm(t, end=False):
-            dt = datetime.fromisoformat(t) + (timedelta(hours=1) if end else timedelta())
-            return ("พรุ่งนี้ " if dt.date().isoformat() != today else "") + dt.strftime("%H:%M")
-        if nw.get("start"):
-            lines.append(f"⏱ คาดการณ์ฝน 24 ชม. ข้างหน้า: {hhmm(nw['start'])}–{hhmm(nw['end'], True)} น. "
-                         f"รวม ~{nw['total']:.0f} มม. (กรมอุตุฯ)")
-        else:
-            lines.append("⏱ คาดการณ์ฝน 24 ชม. ข้างหน้า: ไม่มีฝนนัยสำคัญ (กรมอุตุฯ)")
-    fc = [d for d in (tmd.get("forecast") or []) if d["date"] > now_th().date().isoformat()]
+        lines.append(f"⏱ คาดการณ์ฝน 24 ชม. ข้างหน้า: {nw} (กรมอุตุฯ)")
+    fc = forecast_days(tmd)
     if fc:
-        nxt = " · ".join(f"{int(d['date'][8:])}/{int(d['date'][5:7])} {d['rain'] or 0:.0f}มม." for d in fc[:3])
-        lines.append(f"📅 พยากรณ์ฝน (กรมอุตุฯ): {nxt}")
+        lines.append("📅 พยากรณ์ฝน (กรมอุตุฯ): " + " · ".join(f"{d} {r:.0f}มม." for d, r in fc))
     page = os.environ.get("PAGE_URL")
     if page:
         lines.append(f'\n<a href="{esc(page)}">เปิดหน้ารายงาน</a>')
     lines.append(f"<i>{now_th().strftime('%d/%m/%Y %H:%M')} น.</i>")
     return "\n".join(lines)
+
+
+def next24_text(nw: dict | None) -> str | None:
+    """ช่วงเวลาฝนตก 24 ชม. ข้างหน้าจาก NWP รายชั่วโมง"""
+    if not nw:
+        return None
+    if not nw.get("start"):
+        return "ไม่มีฝนนัยสำคัญ"
+    today = now_th().date().isoformat()
+
+    def hhmm(t, end=False):
+        dt = datetime.fromisoformat(t) + (timedelta(hours=1) if end else timedelta())
+        return ("พรุ่งนี้ " if dt.date().isoformat() != today else "") + dt.strftime("%H:%M")
+    return f"{hhmm(nw['start'])}–{hhmm(nw['end'], True)} น. รวม ~{nw['total']:.0f} มม."
+
+
+def forecast_days(tmd: dict) -> list:
+    """พยากรณ์ฝนรายวัน 3 วันถัดไป → [("21/10", มม.), ...]"""
+    today = now_th().date().isoformat()
+    fc = [d for d in (tmd.get("forecast") or []) if d["date"] > today]
+    return [(f"{int(d['date'][8:])}/{int(d['date'][5:7])}", d["rain"] or 0) for d in fc[:3]]
+
+
+# ================================================================ LINE Flex
+# สีป้ายระดับสถานการณ์ (พื้น, ตัวอักษร) ตาม LEVELS
+FLEX_LEVEL = [("#dcfce7", "#166534"), ("#fef3c7", "#854d0e"), ("#ffedd5", "#9a3412"), ("#fee2e2", "#991b1b")]
+FLEX_ALERT = "#b45309"          # สีตัวเลขที่ถึงเกณฑ์เฝ้าระวัง
+
+
+def flex_row(label: str, value: str, sub: str | None = None, alert: bool = False) -> dict:
+    row = {"type": "box", "layout": "horizontal", "spacing": "md", "contents": [
+        {"type": "text", "text": label, "size": "sm", "color": "#666666", "flex": 5, "wrap": True},
+        {"type": "text", "text": value, "size": "sm", "weight": "bold", "align": "end", "flex": 4,
+         "wrap": True, "color": FLEX_ALERT if alert else "#111111"}]}
+    if not sub:
+        return row
+    return {"type": "box", "layout": "vertical", "contents": [
+        row, {"type": "text", "text": sub, "size": "xxs", "color": "#999999", "align": "end", "wrap": True}]}
+
+
+def build_flex(summary: dict, tmd: dict, header: str) -> dict:
+    """การ์ด LINE Flex — ข้อมูลชุดเดียวกับ build_message จัดเป็นตาราง ชื่อรายการ/ค่า"""
+    lvl = summary["level"]
+    bg, fg = FLEX_LEVEL[lvl]
+    tw = summary.get("thaiwater") or {}
+    groups = []
+
+    # ฝน 24 ชม. / แรงสุดรายชั่วโมง / สะสม
+    rows = []
+    b = tw.get("max_in_district") or tw.get("max_nearby")
+    if b:
+        rows.append(flex_row("ฝน 24 ชม. สูงสุด", f"{b['rain_24h']} มม.", f"{b['name']} {place_label(b)}",
+                             (b["rain_24h"] or 0) >= RAIN_HEAVY))
+    i = tw.get("max_1h_in_district") or tw.get("max_1h_nearby")
+    if i and (i.get("rain_1h") or 0) > 0:
+        rows.append(flex_row("ฝนแรงสุดชั่วโมงล่าสุด", f"{i['rain_1h']} มม./ชม.", f"{i['name']} {place_label(i)}",
+                             i["rain_1h"] >= RAIN_1H_INTENSE))
+    rh = summary.get("rain_history") or {}
+    if rh.get("sum7") is not None:
+        miss = f" (ขาดข้อมูล {rh['missing7']} วัน)" if rh.get("missing7") else ""
+        rows.append(flex_row("ฝนสะสม 3 วัน", f"{rh['sum3']:,.0f} มม."))
+        rows.append(flex_row("ฝนสะสม 7 วัน", f"{rh['sum7']:,.0f} มม.", f"{rh['station']}{miss}",
+                             rh["sum7"] >= RAIN7_SATURATED))
+    groups.append(rows)
+
+    # ระดับน้ำ 3 สถานีที่สูงที่สุด
+    groups.append([flex_row(f"ระดับน้ำ {r['name']}", f"{r['pct']:.0f}% ตลิ่ง", place_label(r), r["pct"] >= WL_WATCH)
+                   for r in (summary.get("waterlevel") or [])[:3]])
+
+    # อ.เขาพนม จ.กระบี่: ฝนสูงสุด + อ่างเก็บน้ำ
+    rows = []
+    k = (tw.get("khaophanom") or {}).get("max_24h")
+    if k and k.get("rain_24h") is not None:
+        rows.append(flex_row(f"ฝนสูงสุด อ.{KP_AMPHOE}", f"{k['rain_24h']} มม.", f"{k['name']} ต.{k['tambon']}",
+                             k["rain_24h"] >= RAIN_HEAVY))
+    rows += [flex_row(d["name"].replace("อ่างเก็บน้ำ", "อ่างฯ "), f"{d['pct']:.0f}%")
+             for d in summary.get("kp_dams") or []]
+    groups.append(rows)
+
+    # พยากรณ์ 24 ชม. ข้างหน้า + 3 วันถัดไป (กรมอุตุฯ)
+    rows = []
+    nw = next24_text(summary.get("nwp_next24"))
+    if nw:
+        rows.append(flex_row("คาดการณ์ฝน 24 ชม.", nw))
+    rows += [flex_row(f"พยากรณ์ฝน {d}", f"{r:.0f} มม.") for d, r in forecast_days(tmd)]
+    groups.append(rows)
+
+    table = []
+    for rows in (g for g in groups if g):
+        if table:
+            table.append({"type": "separator", "margin": "md", "color": "#e2e2e2"})
+        table.append({"type": "box", "layout": "vertical", "spacing": "xs", "margin": "md", "contents": rows})
+
+    body = [
+        {"type": "box", "layout": "horizontal", "justifyContent": "center", "contents": [
+            {"type": "box", "layout": "vertical", "width": "72px", "height": "72px", "cornerRadius": "36px",
+             "backgroundColor": "#e8f0fb", "justifyContent": "center", "alignItems": "center",
+             "contents": [{"type": "text", "text": "🌧️", "size": "3xl", "align": "center"}]}]},
+        {"type": "text", "text": header, "weight": "bold", "size": "md", "align": "center", "wrap": True,
+         "margin": "lg"},
+        {"type": "text", "text": now_th().strftime("ในวันที่ %d/%m/%Y เวลา %H:%M น."), "size": "xs",
+         "color": "#8a8a8a", "align": "center", "margin": "sm"},
+        {"type": "text", "text": f"อ.{AMPHOE_TH} จ.{PROVINCE_TH}", "size": "sm", "color": "#555555",
+         "align": "center", "margin": "xs"},
+        {"type": "box", "layout": "horizontal", "justifyContent": "center", "margin": "md", "contents": [
+            {"type": "box", "layout": "vertical", "flex": 0, "backgroundColor": bg, "cornerRadius": "20px",
+             "paddingTop": "4px", "paddingBottom": "4px", "paddingStart": "16px", "paddingEnd": "16px",
+             "contents": [{"type": "text", "text": f"● ระดับ: {LEVELS[lvl]['label']}", "size": "sm",
+                           "weight": "bold", "color": fg}]}]},
+    ]
+    if table:
+        body.append({"type": "box", "layout": "vertical", "margin": "lg", "backgroundColor": "#f4f4f4",
+                     "cornerRadius": "12px", "paddingAll": "12px", "paddingTop": "2px", "contents": table})
+    if summary["reasons"]:
+        body.append({"type": "box", "layout": "vertical", "margin": "lg", "spacing": "xs", "contents": [
+            {"type": "text", "text": "ข้อสังเกต", "size": "sm", "weight": "bold"},
+            *[{"type": "text", "text": f"• {r['text']}", "size": "xs", "color": "#444444", "wrap": True}
+              for r in summary["reasons"][:5]]]})
+
+    bubble = {"type": "bubble", "size": "mega",
+              "body": {"type": "box", "layout": "vertical", "paddingAll": "20px", "contents": body}}
+    page = os.environ.get("PAGE_URL")
+    if page:
+        bubble["footer"] = {"type": "box", "layout": "vertical", "paddingAll": "20px", "paddingTop": "0px",
+                            "contents": [{"type": "button", "style": "primary", "color": "#0b66cc", "height": "md",
+                                          "action": {"type": "uri", "label": "เปิดหน้ารายงาน", "uri": page}}]}
+    return {"type": "flex", "altText": f"{header} — อ.{AMPHOE_TH} ระดับ: {LEVELS[lvl]['label']}"[:400],
+            "contents": bubble}
 
 
 # ================================================================ main
@@ -1077,13 +1202,15 @@ def main():
     daily = os.environ.get("DAILY_REPORT", "").lower() in ("1", "true", "yes")
     prev_level = prev_summary.get("level")
     new_warn = [t for t in summary["warning_titles"] if t not in (prev_summary.get("warning_titles") or [])]
+    head = None
     if daily:
-        notify(build_message(summary, flood, tmd, "รายงานสถานการณ์ฝน/น้ำท่วมประจำวัน"))
+        head = "รายงานสถานการณ์ฝน/น้ำท่วมประจำวัน"
     elif prev_level is not None and level != prev_level:
         head = "⚠️ ระดับสถานการณ์สูงขึ้น" if level > prev_level else "ℹ️ ระดับสถานการณ์ลดลง"
-        notify(build_message(summary, flood, tmd, head))
     elif prev_summary and new_warn:
-        notify(build_message(summary, flood, tmd, "📢 กรมอุตุฯ ออกประกาศเตือนภัยใหม่"))
+        head = "📢 กรมอุตุฯ ออกประกาศเตือนภัยใหม่"
+    if head:
+        notify(build_message(summary, flood, tmd, head), build_flex(summary, tmd, head))
 
 
 if __name__ == "__main__":
