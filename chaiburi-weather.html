@@ -141,11 +141,6 @@
   #floodmap{height:380px;border-radius:14px;overflow:hidden;margin-top:14px;border:1px solid var(--line);z-index:0}
   .okbox{background:rgba(21,128,61,.08);border:1px solid rgba(21,128,61,.25);color:var(--good);border-radius:12px;padding:12px 14px;font-weight:600;margin-top:6px}
   /* กรมอุตุฯ */
-  .warn{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:10px;background:var(--card2)}
-  .warn.rel{border-color:var(--warn);background:rgba(217,119,6,.07)}
-  .warn .wt{font-weight:800}
-  .warn .wd{font-size:.82rem;color:var(--muted);margin-top:2px}
-  .warn .wx{font-size:.93rem;margin-top:6px;line-height:1.6}
   .subh{font-weight:800;color:var(--brand1);margin:18px 0 4px;font-size:1.02rem}
   .note{font-size:.92rem;color:var(--muted);line-height:1.65;margin-top:10px}
   .loading{color:var(--muted);padding:30px;text-align:center;font-size:1.05rem}
@@ -171,7 +166,7 @@
     <a href="#content">สภาพอากาศ &amp; พยากรณ์</a>
     <a href="#sec-rain">ฝนสะสม</a>
     <a href="#stations">จุดวัดน้ำฝน</a>
-    <a href="#tmd">กรมอุตุฯ/เตือนภัย</a>
+    <a href="#tmd">กรมอุตุฯ</a>
     <a href="#flood">น้ำท่วม (ดาวเทียม)</a>
     <a href="#dams">เขื่อน/อ่างเก็บน้ำ</a>
   </nav>
@@ -640,7 +635,7 @@ async function loadSummary(){
     const chip = (ok, label) => '<span class="chip '+(ok?'ok':'bad')+'">'+(ok?'✓':'✕')+' '+label+'</span>';
     const reasons = (s.reasons||[]).length
       ? '<ul>' + s.reasons.map(r => '<li>'+esc(r.text)+'</li>').join("") + '</ul>'
-      : '<div class="note" style="margin-top:4px">ไม่พบฝนหนัก ประกาศเตือนภัยที่เกี่ยวข้อง หรือพื้นที่น้ำท่วมจากดาวเทียมในอำเภอ</div>';
+      : '<div class="note" style="margin-top:4px">ไม่พบฝนหนัก ระดับน้ำสูง หรือพื้นที่น้ำท่วมจากดาวเทียมในอำเภอ</div>';
     box.style.setProperty("--lv", s.color || "#15803d");
     box.innerHTML = `
       <div class="lvbadge">${esc(s.label || "-")}</div>
@@ -651,11 +646,10 @@ async function loadSummary(){
           ${chip(src.thaiwater,"ThaiWater ฝน")}
           ${chip(src.waterlevel,"ระดับน้ำ")}
           ${chip(src.tmd_obs,"กรมอุตุฯ ตรวจวัด")}
-          ${chip(src.tmd_warnings,"ข่าวเตือนภัย")}
           ${chip(src.tmd_forecast,"พยากรณ์กรมอุตุฯ")}
           ${chip(src.gistda && !src.gistda_stale,"GISTDA น้ำท่วม")}
         </div>
-        <div class="note" style="margin-top:6px">ประมวลผลเมื่อ ${thDT(s.generated_at)} · ระดับคำนวณอัตโนมัติจากเกณฑ์ฝนกรมอุตุฯ (หนัก ≥35.1 / หนักมาก ≥90.1 มม.) ฝนสะสม 7 วัน ระดับน้ำในคลอง/แม่น้ำ พยากรณ์ฝน ข่าวเตือนภัย และพื้นที่น้ำท่วมจากดาวเทียม — ใช้ประกอบการตัดสินใจ ไม่ใช่ประกาศทางราชการ</div>
+        <div class="note" style="margin-top:6px">ประมวลผลเมื่อ ${thDT(s.generated_at)} · ระดับคำนวณอัตโนมัติจากเกณฑ์ฝนกรมอุตุฯ (หนัก ≥35.1 / หนักมาก ≥90.1 มม.) ฝนสะสม 7 วัน ระดับน้ำในคลอง/แม่น้ำ พยากรณ์ฝน และพื้นที่น้ำท่วมจากดาวเทียม — ใช้ประกอบการตัดสินใจ ไม่ใช่ประกาศทางราชการ</div>
       </div>`;
   }catch(e){
     box.innerHTML = '<div class="note err">'+esc(e.message)+'</div>';
@@ -668,19 +662,6 @@ async function loadTmd(){
   try{
     const t = await loadLocal("tmd.json");
     const errs = t.errors || {};
-
-    // ข่าวเตือนภัย
-    const warns = (t.warnings||[]).slice().sort((a,b)=>(b.relevant-a.relevant));
-    let wHtml = warns.length ? "" : '<div class="note">ไม่มีข่าวเตือนภัยในขณะนี้</div>';
-    for(const w of warns.slice(0,6)){
-      wHtml += '<div class="warn '+(w.relevant?'rel':'')+'">'
-        + '<div class="wt">'+(w.relevant?'⚠️ ':'')+esc(w.title)+'</div>'
-        + '<div class="wd">ประกาศ '+thDT(w.announced)+(w.relevant?' · <b>เกี่ยวข้องกับภาคใต้/สุราษฎร์ธานี</b>':'')+'</div>'
-        + (w.description ? '<details><summary>รายละเอียด</summary><div class="wx">'+esc(w.description)+'</div></details>' : '')
-        + (w.url ? '<div class="wd"><a href="'+esc(w.url)+'" target="_blank" rel="noopener">เอกสารประกาศ</a></div>' : '')
-        + '</div>';
-    }
-    if(errs.warnings) wHtml += '<div class="note err">ข่าวเตือนภัย: '+esc(errs.warnings)+'</div>';
 
     // สถานีตรวจอากาศ (พยากรณ์ 7 วันย้ายไปแสดงในการ์ดด้านบนแล้ว)
     const today = {}; for(const r of (t.today||[])) today[r.wmo] = r;
@@ -698,12 +679,11 @@ async function loadTmd(){
       : '<div class="note">'+esc(errs.obs3h || "ไม่มีข้อมูลสถานี")+'</div>';
 
     box.innerHTML = `
-      <h2>🏛️ กรมอุตุนิยมวิทยา — เตือนภัย / สถานีตรวจอากาศ
+      <h2>🏛️ กรมอุตุนิยมวิทยา — สถานีตรวจอากาศ
         ${t.stale?'<span class="badge" style="background:#fde68a;color:#92400e">ข้อมูลรอบก่อน</span>':''}
       </h2>
-      <div class="subh">📢 ข่าวเตือนภัยสภาพอากาศ</div>${wHtml}
       <div class="subh">🌡️ สถานีตรวจอากาศใกล้เคียง</div>${sHtml}
-      <div class="note">ที่มา: data.tmd.go.th · ปรับปรุง ${thDT(t.generated_at)}${t.demo_key?' · ใช้ demo key (ควรลงทะเบียน uid/ukey ของหน่วยงาน)':''}</div>`;
+      <div class="note">ที่มา: data.tmd.go.th · ปรับปรุง ${thDT(t.generated_at)}</div>`;
   }catch(e){
     box.innerHTML = '<h2>🏛️ กรมอุตุนิยมวิทยา</h2><div class="note err">'+esc(e.message)+'</div>';
   }

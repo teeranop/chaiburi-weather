@@ -4,7 +4,7 @@ fetch_data.py — รวบรวมข้อมูลน้ำท่วม/ฝ�
 
 แหล่งข้อมูล
   - GISTDA Disaster API   : พื้นที่น้ำท่วมจากดาวเทียม 1/3/7/30 วัน + น้ำท่วมซ้ำซาก (ต้องมี API key)
-  - กรมอุตุนิยมวิทยา (TMD) : ผลตรวจราย 3 ชม., ฝน 24 ชม. (07:00), ข่าวเตือนภัย,
+  - กรมอุตุนิยมวิทยา (TMD) : ผลตรวจราย 3 ชม., ฝน 24 ชม. (07:00),
                              พยากรณ์ NWP รายชั่วโมง 24 ชม. + รายวัน 7 วัน, สภาพอากาศปัจจุบัน (current)
   - ThaiWater (สสน.)       : ฝน 24 ชม. จากสถานีโทรมาตร (ใช้คำนวณระดับสถานการณ์)
 
@@ -19,7 +19,7 @@ fetch_data.py — รวบรวมข้อมูลน้ำท่วม/ฝ�
   GISTDA_API_KEY        API key จาก api-gateway.gistda.or.th
   TMD_UID, TMD_UKEY     uid/ukey ที่ลงทะเบียนกับ data.tmd.go.th (ไม่ตั้ง = ใช้ demo/demokey)
   TMD_NWP_TOKEN         Bearer token ของ TMD NWP API (พยากรณ์ 7 วันรายพิกัด)
-  TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID   ส่งแจ้งเตือนเมื่อระดับเปลี่ยน/มีข่าวเตือนใหม่
+  TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID   ส่งแจ้งเตือนเมื่อระดับเปลี่ยน
   MOPH_CLIENT_ID, MOPH_SECRET           Client_ID / Secret จาก CMS MOPH Notify — ส่งแจ้งเตือนเดียวกันเข้า LINE (LINE OA หมอพร้อม)
   MOPH_NOTIFY_URL       เปลี่ยน endpoint ของ MOPH Notify (ค่าเริ่มต้น morpromt2f.moph.go.th/api/notify/send)
   DAILY_REPORT=true     บังคับส่งรายงานสรุปประจำวันทาง Telegram
@@ -88,7 +88,6 @@ RAIN_VERY_HEAVY = 90.1
 RAIN7_SATURATED = 200          # ฝนสะสม 7 วัน (มม.) ที่ถือว่าดินอิ่มน้ำ
 RAIN_1H_INTENSE = 30           # ฝนรายชั่วโมง (มม.) ที่เสี่ยงน้ำท่วมฉับพลัน
 WL_WATCH, WL_WARN = 80, 100    # ระดับน้ำ % ของตลิ่ง: เฝ้าระวัง / เตือนภัย (ล้นตลิ่ง)
-WARN_MAX_AGE_DAYS = 7          # ไม่แสดงข่าวเตือนภัยกรมอุตุฯ ที่เก่ากว่านี้
 
 # รหัสสภาพอากาศ (cond) ของ TMD NWP
 TMD_COND = {
@@ -454,59 +453,6 @@ def parse_tmd_obs(payload) -> list:
     return rows[:TMD_STATION_LIMIT]
 
 
-def walk_dicts(o):
-    if isinstance(o, dict):
-        yield o
-        for v in o.values():
-            yield from walk_dicts(v)
-    elif isinstance(o, list):
-        for v in o:
-            yield from walk_dicts(v)
-
-
-def pick(d: dict, *needles, prefer_thai=True):
-    keys = list(d.keys())
-    for n in needles:
-        cand = [k for k in keys if n.lower() in k.lower()]
-        if prefer_thai:
-            cand.sort(key=lambda k: (0 if "thai" in k.lower() else 1, len(k)))
-        for k in cand:
-            t = text(d[k])
-            if t:
-                return t
-    return ""
-
-
-def parse_tmd_warnings(payload) -> list:
-    out, seen = [], set()
-    if isinstance(payload, dict):                 # "header" คือหัวฟีด (ชื่อ/คำอธิบายบริการ) ไม่ใช่ประกาศ
-        payload = {k: v for k, v in payload.items() if k.lower() != "header"}
-    cutoff = (now_th() - timedelta(days=WARN_MAX_AGE_DAYS)).isoformat(timespec="minutes")
-    for d in walk_dicts(payload):
-        if not any("title" in k.lower() for k in d):
-            continue
-        title = pick(d, "Title")
-        if not title or title in seen:
-            continue
-        seen.add(title)
-        desc = pick(d, "Description", "Detail", "Content")
-        ann = pick(d, "Announce", "DateTime", "Date", prefer_thai=False)
-        announced = parse_tmd_dt(ann) or ann
-        if re.match(r"\d{4}-\d\d-\d\dT", announced or "") and announced < cutoff:
-            continue                              # ประกาศเก่าเกิน WARN_MAX_AGE_DAYS
-        url = pick(d, "Document", "Url", "Link", prefer_thai=False)
-        blob = f"{title} {desc}"
-        out.append({
-            "title": title,
-            "description": re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", desc)).strip()[:1200],
-            "announced": announced,
-            "url": url if url.startswith("http") else "",
-            "relevant": any(w in blob for w in (PROVINCE_TH, "ภาคใต้", AMPHOE_TH)),
-        })
-    out.sort(key=lambda w: w.get("announced") or "", reverse=True)
-    return out[:10]
-
-
 def nwp_forecasts(payload) -> list:
     """รายการ forecasts ของพิกัดแรก (daily ใช้ weather_forecast.locations, hourly ใช้ WeatherForcasts)"""
     locs = None
@@ -597,7 +543,6 @@ def fetch_tmd(out_dir: str, prev_url: str | None) -> dict:
 
     attempt("obs3h", lambda: parse_tmd_obs(http_json(f"{TMD_BASE}/Weather3Hours/V2/", base)))
     attempt("today", lambda: parse_tmd_obs(http_json(f"{TMD_BASE}/WeatherToday/V2/", base)))
-    attempt("warnings", lambda: parse_tmd_warnings(http_json(f"{TMD_BASE}/WeatherWarningNews/v1/", base)))
     if token:
         attempt("forecast", lambda: parse_nwp_daily(http_json(
             TMD_NWP_DAILY,
@@ -855,20 +800,6 @@ def assess(flood: dict, tmd: dict, tw: dict | None, wl: list | None = None,
             bump(1, f"กรมอุตุฯ คาดฝน 24 ชม. ข้างหน้า {nwin['total']:.0f} มม. — ฝนหนักมาก")
         elif nwin["total"] >= RAIN_HEAVY and saturated:
             bump(1, f"กรมอุตุฯ คาดฝน 24 ชม. ข้างหน้า {nwin['total']:.0f} มม. ขณะดินอิ่มน้ำ")
-
-    # --- ข่าวเตือนภัยกรมอุตุฯ ที่เกี่ยวข้อง ภายใน 48 ชม.
-    cutoff = now_th() - timedelta(hours=48)
-    for w in tmd.get("warnings") or []:
-        if not w.get("relevant"):
-            continue
-        try:
-            t = datetime.fromisoformat(w["announced"])
-            recent = t >= cutoff
-        except (TypeError, ValueError):
-            recent = False
-        if recent:
-            bump(1, f"กรมอุตุฯ ประกาศ: {w['title']}")
-            break
 
     # --- น้ำท่วมจากดาวเทียม (ในอำเภอ)
     per = (flood or {}).get("periods") or {}
@@ -1186,13 +1117,11 @@ def main():
             "gistda": "error" not in flood or bool(flood.get("periods")),
             "gistda_stale": bool(flood.get("stale")),
             "tmd_obs": bool(tmd.get("obs3h")),
-            "tmd_warnings": "warnings" in tmd,
             "tmd_forecast": bool(tmd.get("forecast")),
             "thaiwater": tw is not None,
             "waterlevel": bool(wl),
             "rain_history": rh is not None,
         },
-        "warning_titles": [w["title"] for w in (tmd.get("warnings") or []) if w.get("relevant")],
     }
 
     write_json(os.path.join(args.out, "flood.json"), flood)
@@ -1208,14 +1137,11 @@ def main():
         return
     daily = os.environ.get("DAILY_REPORT", "").lower() in ("1", "true", "yes")
     prev_level = prev_summary.get("level")
-    new_warn = [t for t in summary["warning_titles"] if t not in (prev_summary.get("warning_titles") or [])]
     head = None
     if daily:
         head = "รายงานสถานการณ์ฝน/น้ำท่วมประจำวัน"
     elif prev_level is not None and level != prev_level:
         head = "⚠️ ระดับสถานการณ์สูงขึ้น" if level > prev_level else "ℹ️ ระดับสถานการณ์ลดลง"
-    elif prev_summary and new_warn:
-        head = "📢 กรมอุตุฯ ออกประกาศเตือนภัยใหม่"
     if head:
         notify(build_message(summary, flood, tmd, head), build_flex(summary, tmd, head))
 
