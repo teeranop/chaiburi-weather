@@ -88,6 +88,7 @@ RAIN_VERY_HEAVY = 90.1
 RAIN7_SATURATED = 200          # ฝนสะสม 7 วัน (มม.) ที่ถือว่าดินอิ่มน้ำ
 RAIN_1H_INTENSE = 30           # ฝนรายชั่วโมง (มม.) ที่เสี่ยงน้ำท่วมฉับพลัน
 WL_WATCH, WL_WARN = 80, 100    # ระดับน้ำ % ของตลิ่ง: เฝ้าระวัง / เตือนภัย (ล้นตลิ่ง)
+WARN_MAX_AGE_DAYS = 7          # ไม่แสดงข่าวเตือนภัยกรมอุตุฯ ที่เก่ากว่านี้
 
 # รหัสสภาพอากาศ (cond) ของ TMD NWP
 TMD_COND = {
@@ -401,7 +402,7 @@ def tmd_stations(payload) -> list:
 
 
 def parse_tmd_dt(s: str):
-    s = text(s)
+    s = re.sub(r"\.\d+$", "", text(s))           # ตัดเศษวินาที เช่น "17:06:38.000"
     for fmt in ("%m/%d/%Y %H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%d/%m/%Y %H:%M:%S"):
         try:
             return datetime.strptime(s, fmt).replace(tzinfo=TZ_TH).isoformat(timespec="minutes")
@@ -478,6 +479,9 @@ def pick(d: dict, *needles, prefer_thai=True):
 
 def parse_tmd_warnings(payload) -> list:
     out, seen = [], set()
+    if isinstance(payload, dict):                 # "header" คือหัวฟีด (ชื่อ/คำอธิบายบริการ) ไม่ใช่ประกาศ
+        payload = {k: v for k, v in payload.items() if k.lower() != "header"}
+    cutoff = (now_th() - timedelta(days=WARN_MAX_AGE_DAYS)).isoformat(timespec="minutes")
     for d in walk_dicts(payload):
         if not any("title" in k.lower() for k in d):
             continue
@@ -487,12 +491,15 @@ def parse_tmd_warnings(payload) -> list:
         seen.add(title)
         desc = pick(d, "Description", "Detail", "Content")
         ann = pick(d, "Announce", "DateTime", "Date", prefer_thai=False)
+        announced = parse_tmd_dt(ann) or ann
+        if re.match(r"\d{4}-\d\d-\d\dT", announced or "") and announced < cutoff:
+            continue                              # ประกาศเก่าเกิน WARN_MAX_AGE_DAYS
         url = pick(d, "Document", "Url", "Link", prefer_thai=False)
         blob = f"{title} {desc}"
         out.append({
             "title": title,
             "description": re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", desc)).strip()[:1200],
-            "announced": parse_tmd_dt(ann) or ann,
+            "announced": announced,
             "url": url if url.startswith("http") else "",
             "relevant": any(w in blob for w in (PROVINCE_TH, "ภาคใต้", AMPHOE_TH)),
         })
