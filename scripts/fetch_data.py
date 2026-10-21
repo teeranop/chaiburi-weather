@@ -999,8 +999,8 @@ def next24_text(nw: dict | None) -> str | None:
     """ช่วงเวลาฝนตก 24 ชม. ข้างหน้าจาก NWP รายชั่วโมง"""
     if not nw:
         return None
-    if not nw.get("start"):
-        return "ไม่มีฝนนัยสำคัญ"
+    if not nw.get("start"):             # ไม่มีชั่วโมงไหนถึง 0.5 มม./ชม.
+        return f"ไม่มีฝน หรือฝนเล็กน้อย (รวม ~{nw['total']:.1f} มม.)" if nw["total"] > 0 else "ไม่มีฝน"
     today = now_th().date().isoformat()
 
     def hhmm(t, end=False):
