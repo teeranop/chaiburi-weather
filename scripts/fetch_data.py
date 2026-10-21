@@ -54,6 +54,7 @@ BBOX = (98.85, 8.25, 99.30, 8.70)
 THAIWATER_RADIUS_KM = 40
 TMD_RADIUS_KM = 150
 TMD_STATION_LIMIT = 6
+OBS_CARRY_HOURS = 6              # สถานีที่หายจากรอบล่าสุด ใช้ค่ารอบก่อนได้ไม่เกินกี่ชั่วโมง
 
 GISTDA_BASE = "https://api-gateway.gistda.or.th/api/2.0/resources"
 GISTDA_PERIODS = ["1day", "3days", "7days", "30days"]
@@ -564,6 +565,26 @@ def parse_nwp_daily(payload) -> list:
     return days
 
 
+def carry_missing_stations(rows: list, prev_rows: list, max_age_h: float = OBS_CARRY_HOURS) -> list:
+    """กรมอุตุฯ บางรอบยังไม่มีรายงานของบางสถานี (เช่น พระแสง ส่งช้า) → ใช้ค่ารอบก่อนของสถานีนั้น
+    ถ้ายังไม่เก่าเกิน max_age_h ชั่วโมง แทนการให้สถานีหายไปจากหน้าเว็บ"""
+    have = {r.get("wmo") for r in rows}
+    now = now_th()
+    out = list(rows)
+    for r in prev_rows:
+        if not r.get("wmo") or r["wmo"] in have:
+            continue
+        try:
+            age_h = (now - datetime.fromisoformat(r["time"])).total_seconds() / 3600
+        except (TypeError, ValueError):
+            continue
+        if age_h <= max_age_h:
+            out.append(r)
+            log(f"TMD obs3h: ไม่มี {r['wmo']} ในรอบนี้ — ใช้ค่ารอบก่อน ({r['time']})")
+    out.sort(key=lambda r: r["dist_km"])
+    return out[:TMD_STATION_LIMIT]
+
+
 def fetch_tmd(out_dir: str, prev_url: str | None) -> dict:
     uid = os.environ.get("TMD_UID") or "demo"
     ukey = os.environ.get("TMD_UKEY") or "demokey"
@@ -584,6 +605,8 @@ def fetch_tmd(out_dir: str, prev_url: str | None) -> dict:
                 res.setdefault("stale", []).append(name)
 
     attempt("obs3h", lambda: parse_tmd_obs(http_json(f"{TMD_BASE}/Weather3Hours/V2/", base)))
+    if "obs3h" not in res["errors"]:
+        res["obs3h"] = carry_missing_stations(res.get("obs3h") or [], prev.get("obs3h") or [])
     attempt("today", lambda: parse_tmd_obs(http_json(f"{TMD_BASE}/WeatherToday/V2/", base)))
     if token:
         attempt("forecast", lambda: parse_nwp_daily(http_json(
