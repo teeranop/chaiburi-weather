@@ -59,7 +59,7 @@ GISTDA_BASE = "https://api-gateway.gistda.or.th/api/2.0/resources"
 GISTDA_PERIODS = ["1day", "3days", "7days", "30days"]
 GISTDA_PAGE = 1000
 GISTDA_MAX_PAGES = 20
-FREQ_MAX_PAGES = 15
+FREQ_MAX_PAGES = 16              # กรอบแผนที่มี ~16,000 แปลง; หน้าลึกกว่านี้ GISTDA มัก timeout (ข้อมูลในอำเภอดึงแยก ได้ครบเสมอ)
 FREQ_REFRESH_DAYS = 7
 MAP_MAX_FEATURES = 4000
 COORD_DP = 5
@@ -230,11 +230,19 @@ def mark_stale(prev: dict | None, err: str):
 
 
 # ================================================================ GISTDA
-def gistda_get_all(path: str, key: str, params: dict, max_pages: int, timeout: int = 90):
+def gistda_get_all(path: str, key: str, params: dict, max_pages: int, timeout: int = 90,
+                   partial_ok: bool = False):
+    """partial_ok: ถ้าหน้าหลัง ๆ ล้มเหลว ให้คืนเท่าที่ได้แทนการโยน error (ดู matched เทียบจำนวนที่ได้)"""
     feats, offset, matched = [], 0, None
     for _ in range(max_pages):
         q = dict(params, limit=GISTDA_PAGE, offset=offset)
-        data = http_json(f"{GISTDA_BASE}{path}", q, {"API-Key": key}, timeout=timeout)
+        try:
+            data = http_json(f"{GISTDA_BASE}{path}", q, {"API-Key": key}, timeout=timeout)
+        except Exception as e:                          # noqa: BLE001
+            if not (partial_ok and feats):
+                raise
+            log(f"GISTDA {path}: หยุดที่ offset {offset} ({e}) — ใช้ข้อมูลเท่าที่ได้")
+            break
         page = data.get("features") or []
         matched = data.get("numberMatched", matched)
         feats.extend(page)
@@ -248,13 +256,15 @@ def in_district(p: dict) -> bool:
     ap = str(p.get("ap_idn") or "").strip()
     if ap == AMPHOE_CODE:
         return True
-    return (str(p.get("ap_tn") or "").strip() == AMPHOE_TH
-            and str(p.get("pv_tn") or "").strip() == PROVINCE_TH)
+    # GISTDA ใส่คำนำหน้า เช่น "อ.ชัยบุรี", "จ.สุราษฎร์ธานี"
+    name = lambda k, pre: re.sub(rf"^{pre}\.?\s*", "", str(p.get(k) or "").strip())
+    return name("ap_tn", "อ") == AMPHOE_TH and name("pv_tn", "จ") == PROVINCE_TH
 
 
 def sat_date(file_name: str):
-    m = re.search(r"(20\d{2})(\d{2})(\d{2})", file_name or "")
-    return f"{m.group(1)}-{m.group(2)}-{m.group(3)}" if m else None
+    """วันที่ภาพล่าสุดใน file_name (GISTDA ใส่รายชื่อภาพหลายภาพคั่นด้วย , เช่น "S1D_20261009_0559, cm2_20261017_1710")"""
+    ds = re.findall(r"(20\d{2})(\d{2})(\d{2})", file_name or "")
+    return "-".join(max(ds)) if ds else None
 
 
 def round_coords(c):
@@ -354,6 +364,14 @@ def fetch_gistda(key: str, out_dir: str, prev_url: str | None) -> tuple[dict, di
             errors.append(f"flood/{period}: {e}")
             log(f"GISTDA flood/{period} ล้มเหลว: {e}")
 
+    # วันที่ภาพล่าสุดที่ GISTDA ทำแผนที่น้ำท่วม (ทั้งประเทศ) — บอกผู้ใช้ว่า "ไม่พบในพื้นที่" อาจแค่ยังไม่มีภาพ
+    try:
+        data = http_json(f"{GISTDA_BASE}/features/flood/7days", {"limit": 300}, {"API-Key": key}, timeout=90)
+        dates = [d for d in (sat_date(f.get("properties", {}).get("file_name")) for f in data.get("features") or []) if d]
+        stats["national_latest_date"] = max(dates) if dates else None
+    except Exception as e:                              # noqa: BLE001
+        log(f"GISTDA วันที่ภาพล่าสุดทั้งประเทศ ล้มเหลว: {e}")
+
     if errors and not stats["periods"]:
         prev = load_prev("flood.json", out_dir, prev_url)
         prev_map = load_prev("flood_map.json", out_dir, prev_url)
@@ -376,16 +394,20 @@ def fetch_flood_freq(key: str, out_dir: str, prev_url: str | None) -> dict | Non
             pass
     if not key:
         return prev
+    # ในอำเภอ: กรองด้วยรหัสอำเภอที่ฝั่ง GISTDA (ap_idn) → ได้ครบและเร็ว (ชัยบุรีมี ~72 แปลง)
     try:
-        bbox = ",".join(str(x) for x in BBOX)
-        feats, matched = gistda_get_all("/features/flood-freq", key, {"bbox": bbox}, FREQ_MAX_PAGES, timeout=120)
+        chai, chai_matched = gistda_get_all("/features/flood-freq", key, {"ap_idn": AMPHOE_CODE}, 5, timeout=120)
     except Exception as e:                              # noqa: BLE001
         log(f"flood-freq ล้มเหลว: {e}")
         return mark_stale(prev, str(e)) if prev else {"error": str(e), "generated_at": iso(now_th())}
-
-    def is_chai(p):
-        pv, ap = str(p.get("pv_code") or "").strip(), str(p.get("ap_code") or "").strip()
-        return ap == AMPHOE_CODE or (pv == PROVINCE_CODE and ap in ("18", AMPHOE_CODE))
+    # กรอบแผนที่รอบอำเภอ (~16,000 แปลง): หน้าลึก ๆ ของ GISTDA มัก timeout → เก็บเท่าที่ได้
+    feats, matched = [], None
+    try:
+        bbox = ",".join(str(x) for x in BBOX)
+        feats, matched = gistda_get_all("/features/flood-freq", key, {"bbox": bbox}, FREQ_MAX_PAGES,
+                                        timeout=120, partial_ok=True)
+    except Exception as e:                              # noqa: BLE001
+        log(f"flood-freq (กรอบแผนที่) ล้มเหลว: {e}")
 
     def agg(fs):
         by = {}
@@ -395,13 +417,16 @@ def fetch_flood_freq(key: str, out_dir: str, prev_url: str | None) -> dict | Non
             by[fr] = by.get(fr, 0) + (num(p.get("area_rai")) or 0)
         return [{"freq": k, "area_rai": round(v, 1)} for k, v in sorted(by.items())]
 
-    chai = [f for f in feats if is_chai(f.get("properties", {}))]
-    log(f"flood-freq: {len(feats)} features ในกรอบ, ในอำเภอ {len(chai)}")
+    log(f"flood-freq: ในอำเภอ {len(chai)}/{chai_matched}, ในกรอบ {len(feats)}/{matched}")
+    chai_trunc = bool(chai_matched and chai_matched > len(chai))
+    bbox_trunc = bool(matched and matched > len(feats))
     return {
         "source": "GISTDA flood-freq",
         "generated_at": iso(now_th()),
         "number_matched": matched,
-        "truncated": bool(matched and matched > len(feats)),
+        # หน้าเว็บแสดงข้อมูลในอำเภอถ้ามี (ไม่งั้นแสดงกรอบแผนที่) — truncated หมายถึงชุดที่แสดง
+        "truncated": chai_trunc if chai else bbox_trunc,
+        "bbox_truncated": bbox_trunc,
         "district": agg(chai),
         "bbox": agg(feats),
         "district_codes_matched": len(chai) > 0,

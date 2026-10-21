@@ -149,6 +149,7 @@
   .fcard .v{font-size:1.4rem;font-weight:800}
   .fcard.hot .v{color:#dc2626}
   #floodmap{height:380px;border-radius:14px;overflow:hidden;margin-top:14px;border:1px solid var(--line);z-index:0}
+  .infobox{background:rgba(217,119,6,.08);border:1px solid rgba(217,119,6,.3);color:#92400e;border-radius:12px;padding:12px 14px;font-weight:600;margin-top:6px;line-height:1.6}
   .okbox{background:rgba(21,128,61,.08);border:1px solid rgba(21,128,61,.25);color:var(--good);border-radius:12px;padding:12px 14px;font-weight:600;margin-top:6px}
   /* กรมอุตุฯ */
   .subh{font-weight:800;color:var(--brand1);margin:18px 0 4px;font-size:1.02rem}
@@ -738,10 +739,16 @@ function renderFlood(){
   }
 
   const hot = (d.area_rai||0) > 0;
-  const status = hot
-    ? ''
-    : '<div class="okbox">ดาวเทียมไม่พบพื้นที่น้ำท่วมในอ.ชัยบุรี ช่วง '+PERIOD_LABEL[floodPeriod]+' ล่าสุด'
-      + ((b.area_rai||0)>0 ? ' (แต่พบในพื้นที่ข้างเคียง '+nf(b.area_rai,0)+' ไร่)' : '')+'</div>';
+  // ไม่พบในกรอบแผนที่เลย = GISTDA ยังไม่ได้ทำแผนที่บริเวณนี้ (อาจไม่มีภาพถ่าย) ≠ ไม่มีน้ำท่วม
+  const natDate = f.national_latest_date ? thD(f.national_latest_date) : '';
+  const status = hot ? ''
+    : (b.area_rai||0) > 0
+    ? '<div class="okbox">ดาวเทียมไม่พบพื้นที่น้ำท่วมในอ.ชัยบุรี ช่วง '+PERIOD_LABEL[floodPeriod]+' ล่าสุด'
+      + ' (แต่พบในพื้นที่ข้างเคียง '+nf(b.area_rai,0)+' ไร่'
+      + (p.latest_satellite_date ? ' · ภาพล่าสุดของบริเวณนี้ '+thD(p.latest_satellite_date) : '')+')</div>'
+    : '<div class="infobox">ยังไม่มีแผนที่น้ำท่วมจาก GISTDA บริเวณอ.ชัยบุรี ช่วง '+PERIOD_LABEL[floodPeriod]+' ล่าสุด'
+      + (natDate ? ' — GISTDA ทำแผนที่น้ำท่วมล่าสุดเมื่อ '+natDate+' (พื้นที่อื่นของประเทศ)' : '')
+      + '<br>อาจยังไม่มีภาพถ่ายดาวเทียมบริเวณนี้ในช่วงที่น้ำท่วม จึง<b>ไม่ได้แปลว่าไม่มีน้ำท่วม</b> — ดูสถานการณ์จริงจากฝนและระดับน้ำด้านบน</div>';
 
   let freqHtml = "";
   if(FREQ && !FREQ.error){
@@ -805,6 +812,7 @@ function drawFloodMap(){
   if(bb) L.rectangle([[bb[1],bb[0]],[bb[3],bb[2]]],{color:"#64748b",weight:1,dashArray:"4 4",fill:false,interactive:false}).addTo(map);
 
   const feats = (FLOODMAP?.features||[]).filter(x => x.properties.p === floodPeriod);
+  let fit = () => {};
   if(feats.length){
     const layer = L.geoJSON({type:"FeatureCollection",features:feats},{
       style: ft => ({color: ft.properties.in ? "#1e3a8a" : "#0284c7", weight:.6,
@@ -815,11 +823,13 @@ function drawFloodMap(){
         + "<br>ประชากร (เซลล์): "+nf(ft.properties.pop)
         + (ft.properties.d ? "<br>ภาพดาวเทียม: "+thD(ft.properties.d) : ""))
     }).addTo(map);
-    try{ map.fitBounds(layer.getBounds().extend([LAT,LON]), {padding:[20,20], maxZoom:13}); }catch(e){}
+    fit = () => map.fitBounds(layer.getBounds().extend([LAT,LON]), {padding:[20,20], maxZoom:13});
   }else if(bb){
-    map.fitBounds([[bb[1],bb[0]],[bb[3],bb[2]]]);
+    fit = () => map.fitBounds([[bb[1],bb[0]],[bb[3],bb[2]]]);
   }
-  setTimeout(()=>map.invalidateSize(), 200);
+  try{ fit(); }catch(e){}
+  // แผนที่อาจถูกสร้างก่อนกล่องมีขนาด (fitBounds จะซูมออกทั้งโลก) → คำนวณขนาดใหม่แล้ว fit ซ้ำ
+  setTimeout(()=>{ map.invalidateSize(); try{ fit(); }catch(e){} }, 200);
 }
 
 function loadAll(){ load(); loadStations(); loadDams(); loadSummary(); loadTmd(); loadFlood(); }
