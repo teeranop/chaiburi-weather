@@ -47,6 +47,8 @@
   .cards{grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
   .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;box-shadow:0 1px 3px rgba(15,34,58,.06),0 6px 16px rgba(15,34,58,.05)}
   .card h2{font-size:1.2rem;color:var(--brand1);margin-bottom:14px;font-weight:800;border-left:5px solid var(--brand2);padding-left:11px;line-height:1.35}
+  .nowcard{grid-column:span 2}
+  @media(min-width:700px){.nowcard{grid-row:span 2}}
   .now{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
   .now .icon{font-size:3.6rem;line-height:1}
   .now .temp{font-size:3.1rem;font-weight:800}
@@ -56,14 +58,17 @@
   .rainbig{color:var(--rain)}
   .forecast{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;overflow-x:auto}
   .day{background:var(--card2);border-radius:12px;padding:12px 8px;text-align:center;min-width:86px}
+  .forecast.hours{grid-template-columns:repeat(12,minmax(64px,1fr))}
+  .forecast.hours .day{min-width:64px;padding:10px 4px}
   .day .dname{font-size:.92rem;color:var(--muted);font-weight:600}
   .day .dico{font-size:2rem;margin:8px 0}
   .day .dtemp{font-size:1rem;font-weight:600}
   .day .drain{font-size:.92rem;color:var(--rain);margin-top:5px;font-weight:600}
-  .bars{display:flex;align-items:flex-end;gap:3px;height:170px;margin-top:10px;overflow-x:auto;padding-bottom:4px}
-  .bar{flex:1;min-width:10px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%}
+  .bars{display:flex;align-items:flex-end;gap:3px;height:200px;margin:10px 0 24px;padding-top:18px;border-bottom:1px solid var(--line)}
+  .bar{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;position:relative}
   .bar .fill{width:100%;background:linear-gradient(180deg,#3b82f6,#1d4ed8);border-radius:3px 3px 0 0;min-height:1px}
-  .bar .blabel{font-size:.62rem;color:var(--muted);margin-top:3px;white-space:nowrap;transform:rotate(-60deg);transform-origin:top left;height:26px}
+  .bar .bval{font-size:.72rem;font-weight:700;color:var(--rain);margin-bottom:2px;white-space:nowrap}
+  .bar .blabel{position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:4px;font-size:.75rem;color:var(--muted);white-space:nowrap}
   .sumrow{display:flex;gap:28px;flex-wrap:wrap;margin-bottom:6px}
   .sumrow .stat b{font-size:1.8rem}
   .links a{color:var(--accent);text-decoration:none;display:inline-block;margin:5px 16px 5px 0;font-size:1rem;font-weight:600}
@@ -83,15 +88,16 @@
   .sttable .r4{color:#dc2626;font-weight:700}
   .stwrap{max-height:440px;overflow:auto}
   .badge{display:inline-block;background:rgba(3,105,161,.12);color:var(--accent);border-radius:7px;padding:2px 9px;font-size:.85rem;margin-left:6px;font-weight:600}
-  .pbar{position:relative;width:90px;height:16px;background:#e2e8f0;border-radius:8px;overflow:hidden;display:inline-block;vertical-align:middle}
-  .pbar .pfill{position:absolute;left:0;top:0;bottom:0;border-radius:8px}
-  .pbar .ptext{position:relative;font-size:.78rem;line-height:16px;color:#0f223a;font-weight:700;padding-left:6px}
+  .pcell{display:inline-flex;align-items:center;gap:8px;vertical-align:middle}
+  .pbar{position:relative;width:72px;height:10px;background:#e2e8f0;border-radius:5px;overflow:hidden}
+  .pbar .pfill{position:absolute;left:0;top:0;bottom:0;border-radius:5px}
+  .ptext{font-weight:700;min-width:3.2em;text-align:right}
   .lvl-low{background:linear-gradient(90deg,#f59e0b,#d97706)}
   .lvl-mid{background:linear-gradient(90deg,#3b82f6,#2563eb)}
   .lvl-high{background:linear-gradient(90deg,#22c55e,#16a34a)}
   .lvl-full{background:linear-gradient(90deg,#ef4444,#b91c1c)}
   /* donut gauges (เขื่อน) */
-  .gauges{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;margin-top:14px}
+  .gauges{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:12px;margin-top:14px}
   .gauge{background:var(--card2);border:1px solid var(--line);border-radius:14px;padding:14px 10px;text-align:center}
   .gauge.hl{outline:2px solid var(--accent);outline-offset:-2px}
   .gauge svg{width:118px;height:118px;display:block;margin:0 auto}
@@ -116,7 +122,11 @@
   .hrow .hval{font-size:.95rem;font-weight:700;min-width:70px;text-align:left;color:var(--text)}
   details{margin-top:14px}
   details summary{cursor:pointer;color:var(--accent);font-size:1rem;padding:6px 0;font-weight:600}
-  @media(max-width:560px){html{font-size:14px}.hrow{grid-template-columns:104px 1fr auto}.hrow .hval{min-width:52px;font-size:.85rem}}
+  @media(max-width:560px){html{font-size:14px}.hrow{grid-template-columns:104px 1fr auto}.hrow .hval{min-width:52px;font-size:.85rem}
+    .topbar-inner{padding:8px 12px 6px;flex-wrap:nowrap}.brand{font-size:1rem;gap:8px}.brand .bicon{font-size:1.4rem}
+    .brand small,.updated{display:none}.btn{padding:6px 10px;font-size:.85rem;white-space:nowrap}
+    .tabs a{padding:7px 11px;font-size:.88rem}
+    #content,#stations,#dams,#sec-rain,#tmd,#flood{scroll-margin-top:100px}}
   /* สรุปสถานการณ์ */
   .summary{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;border-left:8px solid var(--lv,#15803d);margin-bottom:16px}
   .summary .lvbadge{background:var(--lv,#15803d);color:#fff;border-radius:12px;padding:10px 18px;font-size:1.35rem;font-weight:800;white-space:nowrap}
@@ -153,7 +163,7 @@
   <div class="topbar-inner">
     <div class="brand">
       <span class="bicon">🌧️</span>
-      <div>คลังข้อมูลสภาพอากาศ &amp; น้ำ — อ.ชัยบุรี
+      <div>คลังข้อมูลสภาพอากาศ &amp; น้ำ — <span style="white-space:nowrap">อ.ชัยบุรี</span>
         <small>จ.สุราษฎร์ธานี · 8.4628°N, 99.0767°E</small>
       </div>
     </div>
@@ -281,7 +291,7 @@ function currentHtml(t, err){
 
   // 12 ชั่วโมงข้างหน้า (NWP)
   const next = (t.hourly || []).slice(0, 12);
-  const strip = next.length ? '<div class="forecast" style="grid-template-columns:repeat(12,minmax(64px,1fr));margin-top:14px">'
+  const strip = next.length ? '<div class="forecast hours" style="margin-top:14px">'
     + next.map(h => '<div class="day"><div class="dname">'+hhmm(h.time)+'</div><div class="dico">'+condIco(h.cond)+'</div>'
       + '<div class="dtemp">'+nf(h.tc,0)+'°</div><div class="drain">💧 '+nf(h.rain,1)+'</div></div>').join("")
     + '</div>' : '';
@@ -292,7 +302,7 @@ function currentHtml(t, err){
 
   return `
     <div class="grid cards" style="margin-bottom:16px">
-      <div class="card" style="grid-column:span 2;min-width:280px">
+      <div class="card nowcard">
         <h2>สภาพอากาศปัจจุบัน</h2>
         <div class="now">
           <div class="icon">${condIco(n.cond)}</div>
@@ -307,6 +317,7 @@ function currentHtml(t, err){
       <div class="card"><div class="stat">ความชื้น<b>${nf(rh,0)}%</b></div></div>
       <div class="card"><div class="stat">ลม<b>${windTxt}</b></div></div>
       <div class="card"><div class="stat">ความกดอากาศ<b>${nf(s.pressure ?? n.slp,0)} hPa</b></div></div>
+      <div class="card"><div class="stat">ทัศนวิสัย<b>${s.visibility_km == null ? '-' : nf(s.visibility_km,0)+' กม.'}</b></div></div>
     </div>
     ${strip ? '<div class="card" style="margin-bottom:16px"><h2>12 ชั่วโมงข้างหน้า (กรมอุตุฯ)</h2>'+strip+'</div>' : ''}
     <div class="note" style="margin:-8px 0 16px">${srcNote}</div>`;
@@ -346,12 +357,14 @@ function rainHtml(days, err){
   const rain7 = sum(days.slice(-7)), rain30 = sum(days);
   const missing = days.filter(d => d.rain == null).length;
   const maxRain = Math.max(1, ...days.map(d => d.rain || 0));
-  const bars = days.map(d => {
+  const bars = days.map((d, i) => {
     const dt = new Date(d.date+"T00:00:00");
     const tip = fmtDate(dt) + ': ' + (d.rain == null ? 'ไม่มีข้อมูล' : d.rain.toFixed(1)+' มม.');
+    // ป้ายวันที่ทุก 5 วัน (นับจากวันนี้ย้อนหลัง) · ตัวเลขบนแท่งเฉพาะวันที่ฝน ≥ 10 มม.
+    const lbl = (days.length - 1 - i) % 5 === 0 ? '<div class="blabel">'+dt.getDate()+'/'+(dt.getMonth()+1)+'</div>' : '';
+    const val = d.rain >= 10 ? '<div class="bval">'+d.rain.toFixed(0)+'</div>' : '';
     return '<div class="bar" title="'+tip+'"'+(d.rain == null ? ' style="opacity:.35"' : '')+'>'
-      + '<div class="fill" style="height:'+((d.rain||0)/maxRain*100)+'%"></div>'
-      + '<div class="blabel">'+dt.getDate()+'/'+(dt.getMonth()+1)+'</div></div>';
+      + val + '<div class="fill" style="height:'+((d.rain||0)/maxRain*100)+'%"></div>' + lbl + '</div>';
   }).join("");
   return head + `
       <div class="sumrow">
@@ -360,7 +373,7 @@ function rainHtml(days, err){
         <div class="stat">30 วันที่ผ่านมา<b class="rainbig">${rain30.toFixed(1)} มม.</b></div>
       </div>
       <div class="bars">${bars}</div>
-      <div class="note">กราฟแท่ง: ปริมาณฝนรายวัน (มม.) จากมาตรวัดฝนจริงสถานี${RAIN_STN.name} ผ่าน ThaiWater (สสน.) — ชี้เมาส์ที่แท่งเพื่อดูค่า
+      <div class="note">กราฟแท่ง: ปริมาณฝนรายวัน (มม.) จากมาตรวัดฝนจริงสถานี${RAIN_STN.name} ผ่าน ThaiWater (สสน.) — ตัวเลขบนแท่ง = ฝน ≥ 10 มม. · ชี้/แตะที่แท่งเพื่อดูค่า
         ${missing ? '· แท่งจาง = ไม่มีข้อมูล ('+missing+' วัน ไม่นับรวมในยอดสะสม)' : ''}</div>
     </div>`;
 }
@@ -543,7 +556,7 @@ function pbar(pct){
   if(pct < 30) cls = "lvl-low";
   else if(pct >= 100) cls = "lvl-full";
   else if(pct >= 80) cls = "lvl-high";
-  return '<span class="pbar"><span class="pfill '+cls+'" style="width:'+p+'%"></span>'
+  return '<span class="pcell"><span class="pbar"><span class="pfill '+cls+'" style="width:'+p+'%"></span></span>'
        + '<span class="ptext">'+pct.toFixed(0)+'%</span></span>';
 }
 

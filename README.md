@@ -36,6 +36,16 @@
 
 3. **สั่งรันครั้งแรก** — Actions → "อัปเดตข้อมูลและเผยแพร่หน้าเว็บ" → Run workflow
 
+## รันในเครื่อง
+
+คัดลอก `.env.example` เป็น `.env` แล้วใส่ key (ไฟล์ `.env` อยู่ใน `.gitignore` จะไม่ถูก commit) จากนั้นรัน
+
+```bash
+python scripts/fetch_data.py --no-telegram
+```
+
+`--no-telegram` = ไม่ส่งแจ้งเตือน (ทั้ง Telegram และ LINE) · ผลลัพธ์อยู่ใน `data/` · ค่าที่ตั้งใน environment จะใช้ก่อนค่าใน `.env`
+
 ## รอบการทำงาน
 
 - ทุกชั่วโมง (นาทีที่ 17): ดึงข้อมูลใหม่และ deploy หน้าเว็บ

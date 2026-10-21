@@ -109,6 +109,23 @@ def log(*a):
     print("[fetch]", *a, file=sys.stderr, flush=True)
 
 
+def load_dotenv(path: str):
+    """อ่านไฟล์ .env (KEY=VALUE ต่อบรรทัด) สำหรับรันในเครื่อง — ค่าที่ตั้งใน environment แล้วจะไม่ถูกทับ
+    และบรรทัดที่ค่าว่างจะถูกข้าม (บน GitHub Actions ไม่มีไฟล์นี้ ใช้ค่าจาก Secrets ตามเดิม)"""
+    try:
+        with open(path, encoding="utf-8-sig") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, v = (x.strip() for x in line.split("=", 1))
+                v = v.strip('"').strip("'")
+                if k and v and not os.environ.get(k):
+                    os.environ[k] = v
+    except FileNotFoundError:
+        pass
+
+
 def now_th() -> datetime:
     return datetime.now(TZ_TH)
 
@@ -1063,6 +1080,7 @@ def build_flex(summary: dict, tmd: dict, header: str) -> dict:
 
 # ================================================================ main
 def main():
+    load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".env"))
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", default="data", help="โฟลเดอร์ผลลัพธ์ (ค่าเริ่มต้น data)")
     ap.add_argument("--prev-url", default=os.environ.get("PREV_DATA_URL"),
