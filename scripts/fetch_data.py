@@ -1068,7 +1068,7 @@ def build_flex(summary: dict, tmd: dict, header: str) -> dict:
 
     body = [
         {"type": "box", "layout": "horizontal", "justifyContent": "center", "contents": [
-            {"type": "box", "layout": "vertical", "width": "72px", "height": "72px", "cornerRadius": "36px",
+            {"type": "box", "layout": "vertical", "flex": 0, "width": "72px", "height": "72px", "cornerRadius": "36px",
              "backgroundColor": "#e8f0fb", "justifyContent": "center", "alignItems": "center",
              "contents": [{"type": "text", "text": "🌧️", "size": "3xl", "align": "center"}]}]},
         {"type": "text", "text": header, "weight": "bold", "size": "md", "align": "center", "wrap": True,
