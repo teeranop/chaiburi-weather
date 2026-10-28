@@ -649,7 +649,7 @@ async function loadSummary(){
     const chip = (ok, label) => '<span class="chip '+(ok?'ok':'bad')+'">'+(ok?'✓':'✕')+' '+label+'</span>';
     const reasons = (s.reasons||[]).length
       ? '<ul>' + s.reasons.map(r => '<li>'+esc(r.text)+'</li>').join("") + '</ul>'
-      : '<div class="note" style="margin-top:4px">ไม่พบฝนหนัก ระดับน้ำสูง หรือพื้นที่น้ำท่วมจากดาวเทียมในอำเภอ</div>';
+      : '<div class="note" style="margin-top:4px">ไม่พบฝนหนัก หรือพื้นที่น้ำท่วมจากดาวเทียมในอำเภอ</div>';
     box.style.setProperty("--lv", s.color || "#15803d");
     box.innerHTML = `
       <div class="lvbadge">${esc(s.label || "-")}</div>
@@ -663,7 +663,7 @@ async function loadSummary(){
           ${chip(src.tmd_forecast,"พยากรณ์กรมอุตุฯ")}
           ${chip(src.gistda && !src.gistda_stale,"GISTDA น้ำท่วม")}
         </div>
-        <div class="note" style="margin-top:6px">ประมวลผลเมื่อ ${thDT(s.generated_at)} · ระดับคำนวณอัตโนมัติจากเกณฑ์ฝนกรมอุตุฯ (หนัก ≥35.1 / หนักมาก ≥90.1 มม.) ฝนสะสม 7 วัน ระดับน้ำในคลอง/แม่น้ำ พยากรณ์ฝน และพื้นที่น้ำท่วมจากดาวเทียม — ใช้ประกอบการตัดสินใจ ไม่ใช่ประกาศทางราชการ</div>
+        <div class="note" style="margin-top:6px">ประมวลผลเมื่อ ${thDT(s.generated_at)} · ระดับคำนวณอัตโนมัติจากเกณฑ์ฝนกรมอุตุฯ (หนัก ≥35.1 / หนักมาก ≥90.1 มม.) ฝนสะสม 7 วัน พยากรณ์ฝน และพื้นที่น้ำท่วมจากดาวเทียม (ระดับน้ำคลองอิปันแสดงให้ดูเท่านั้น ไม่นำมาคำนวณ เพราะเป็นท้ายน้ำของชัยบุรี) — ใช้ประกอบการตัดสินใจ ไม่ใช่ประกาศทางราชการ</div>
       </div>`;
   }catch(e){
     box.innerHTML = '<div class="note err">'+esc(e.message)+'</div>';
